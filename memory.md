@@ -312,16 +312,21 @@ The edge computer vision system must be decoupled into independent pipeline stag
 
 ## 15. Development Phases
 
-* **Phase 0 — System Definition** (CURRENT: Frozen architecture, contracts, documentation)
-* **Phase 1 — Repository & Development Infrastructure**
-* **Phase 2 — Edge Device Foundation**
-* **Phase 3 — Computer Vision Runtime**
-* **Phase 4 — Retail Intelligence Engine**
-* **Phase 5 — Device Communication**
-* **Phase 6 — Backend & Data Platform**
-* **Phase 7 — Realtime Dashboard**
-* **Phase 8 — Staff Action System**
-* **Phase 9 — Analytics, Testing, Optimization & Deployment**
+- [x] **Phase 0**: System Definition & Architecture
+- [x] **Phase 1**: Repository & Development Infrastructure
+- [x] **Phase 2**: Edge Device Foundation (Simulated via scripts for now)
+- [x] **Phase 3**: Computer Vision Runtime (Architecture & Scripts)
+- [x] **Phase 4**: Retail Intelligence Engine (Event schemas)
+- [x] **Phase 5**: Backend & Data Platform (Prisma, PostgreSQL, FastAPI Gateway)
+- [x] **Phase 6**: Realtime Dashboard (Next.js, SSE, Live Map)
+- [x] **Phase 7**: Staff Action System (Alert to Task lifecycle)
+- [ ] **Phase 8**: Analytics, Testing & Optimization
+- [ ] **Phase 9**: Deployment & Presentation
+
+*Current Phase:* **Phase 8: Analytics, Testing & Optimization**
+
+### Recent Milestones
+*   **[2026-09-05] Phase 6 & 7 & Portfolio Complete**: Implemented the `services/web` Next.js Dashboard and `services/portfolio` showcase site. Dashboard uses SSE via FastAPI for real-time reactivity, TanStack Query for cache management, and a custom Tailwind v4 Dark Editorial design system. Portfolio built as a static-ready separate Next.js app with deep architectural case studies.
 
 ---
 

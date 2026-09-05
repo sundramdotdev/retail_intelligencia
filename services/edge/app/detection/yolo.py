@@ -7,6 +7,11 @@ from app.detection.base import Detector
 from app.models.vision import Detection
 from app.config.settings import VisionConfig
 
+try:
+    from ultralytics import YOLO
+except ImportError:
+    YOLO = None
+
 logger = logging.getLogger("detector")
 
 class YOLODetector(Detector):
@@ -24,12 +29,10 @@ class YOLODetector(Detector):
         logger.info(f"Loading YOLO model from {self.config.model} on device {self._device}")
         
         try:
-            # We import ultralytics here so it doesn't break if not installed
-            from ultralytics import YOLO
-            
-            # YOLO automatically handles downloading if the model is a known preset like yolo11n.pt
-            # and it caches it locally.
-            self.model = YOLO(self.config.model)
+            yolo_cls = YOLO
+            if yolo_cls is None:
+                from ultralytics import YOLO as yolo_cls
+            self.model = yolo_cls(self.config.model)
             
             # Extract class names mapping (id -> name)
             self._class_names = self.model.names

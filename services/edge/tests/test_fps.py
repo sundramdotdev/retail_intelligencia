@@ -9,7 +9,8 @@ def test_fps_calculation():
     for _ in range(10):
         counter.record_input_frame()
         
-    metrics = counter.get_metrics()
+    metrics_res = counter.get_metrics()
+    metrics = metrics_res[0] if isinstance(metrics_res, tuple) else metrics_res
     assert metrics.input_fps == 10.0
     assert metrics.processing_fps == 0.0
 
@@ -23,10 +24,12 @@ def test_fps_rolling_window(monkeypatch):
     for _ in range(5):
         counter.record_input_frame()
         
-    metrics = counter.get_metrics()
+    metrics_res = counter.get_metrics()
+    metrics = metrics_res[0] if isinstance(metrics_res, tuple) else metrics_res
     assert metrics.input_fps == 5.0
     
     # Move time forward by 2 seconds (past window)
     current_time = 102.0
-    metrics = counter.get_metrics()
+    metrics_res = counter.get_metrics()
+    metrics = metrics_res[0] if isinstance(metrics_res, tuple) else metrics_res
     assert metrics.input_fps == 0.0

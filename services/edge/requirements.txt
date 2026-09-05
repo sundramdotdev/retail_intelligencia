@@ -7,3 +7,6 @@ pytest>=7.4.0
 ruff>=0.1.0
 ultralytics>=8.0.0
 norfair>=2.2.0
+ulid-py>=1.1.0
+paho-mqtt>=2.0.0
+httpx>=0.25.0

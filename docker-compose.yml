@@ -1,0 +1,128 @@
+version: '3.8'
+
+services:
+  # ============================================================================
+  # MQTT Message Broker (Eclipse Mosquitto 2.0)
+  # Channels: retail/{env}/{storeId}/{deviceId}/events, heartbeat, telemetry
+  # ============================================================================
+  mosquitto:
+    image: eclipse-mosquitto:2.0
+    container_name: retail-mqtt-broker
+    restart: unless-stopped
+    ports:
+      - "1883:1883"
+      - "8883:8883"
+      - "9001:9001"
+    volumes:
+      - ./infra/mosquitto/config:/mosquitto/config
+      - ./infra/mosquitto/data:/mosquitto/data
+      - ./infra/mosquitto/log:/mosquitto/log
+    environment:
+      - TZ=UTC
+
+  # ============================================================================
+  # PostgreSQL 16 Enterprise Database
+  # Managed by TypeScript Data Service via Prisma ORM
+  # ============================================================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: retail-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-retail_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-retail_secure_password_2026}
+      POSTGRES_DB: ${POSTGRES_DB:-retail_intelligencia}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-retail_admin} -d ${POSTGRES_DB:-retail_intelligencia}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============================================================================
+  # TypeScript Data Service (Internal Fastify + Prisma ORM)
+  # Strict boundary: Exclusively connects to PostgreSQL
+  # ============================================================================
+  data-service:
+    build:
+      context: ./services/data
+      dockerfile: Dockerfile
+    container_name: retail-data-service
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+      HOST: 0.0.0.0
+      DATABASE_URL: postgresql://${POSTGRES_USER:-retail_admin}:${POSTGRES_PASSWORD:-retail_secure_password_2026}@postgres:5432/${POSTGRES_DB:-retail_intelligencia}?schema=public
+      INTERNAL_SERVICE_SECRET: ${INTERNAL_SERVICE_SECRET:-internal_data_secret_2026}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # ============================================================================
+  # FastAPI Device Gateway & API
+  # Ingests MQTT and HTTP events from edge devices, forwards to Data Service
+  # ============================================================================
+  api-gateway:
+    build:
+      context: ./services/api
+      dockerfile: Dockerfile
+    container_name: retail-api-gateway
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      API_PREFIX: /api/v1
+      ENVIRONMENT: dev
+      DATA_SERVICE_URL: http://data-service:5000
+      INTERNAL_SERVICE_SECRET: ${INTERNAL_SERVICE_SECRET:-internal_data_secret_2026}
+      MQTT_ENABLED: "true"
+      MQTT_HOST: mosquitto
+      MQTT_PORT: 1883
+    depends_on:
+      - mosquitto
+      - data-service
+
+  # ============================================================================
+  # Real-Time Dashboard (Next.js)
+  # Operations console for store managers and staff
+  # ============================================================================
+  web:
+    build:
+      context: ./services/web
+      dockerfile: Dockerfile
+    container_name: retail-dashboard
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      NEXT_PUBLIC_API_URL: http://localhost:8000/api/v1
+    depends_on:
+      - api-gateway
+
+  # ============================================================================
+  # Engineering Portfolio (Next.js)
+  # Public-facing showcase website
+  # ============================================================================
+  portfolio:
+    build:
+      context: ./services/portfolio
+      dockerfile: Dockerfile
+    container_name: retail-portfolio
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+
+volumes:
+  postgres_data:
+    driver: local

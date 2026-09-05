@@ -1,0 +1,197 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Store {
+  id             String    @id @default(uuid())
+  storeCode      String    @unique
+  name           String
+  address        String?
+  city           String?
+  state          String?
+  postalCode     String?
+  country        String?   @default("US")
+  timezone       String    @default("UTC")
+  operatingHours Json?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  devices Device[]
+  cameras Camera[]
+  zones   Zone[]
+  events  Event[]
+  alerts  Alert[]
+  tasks   Task[]
+  users   User[]
+  metrics Metric[]
+}
+
+model Device {
+  id                    String    @id @default(uuid())
+  deviceId              String    @unique
+  storeId               String
+  hardwareModel         String?
+  macAddress            String?
+  status                String    @default("PROVISIONED")
+  firmwareVersion       String?
+  runtimeVersion        String?
+  lastHeartbeatAt       DateTime?
+  certificateThumbprint String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  store   Store    @relation(fields: [storeId], references: [storeCode], onDelete: Restrict)
+  cameras Camera[]
+  events  Event[]
+}
+
+model Camera {
+  id               String   @id @default(uuid())
+  cameraId         String   @unique
+  deviceId         String
+  storeId          String
+  streamType       String   @default("RTSP")
+  streamUrl        String?
+  resolutionWidth  Int?     @default(1920)
+  resolutionHeight Int?     @default(1080)
+  configuredFps    Int?     @default(15)
+  mountLocation    String?
+  status           String   @default("ONLINE")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  device Device @relation(fields: [deviceId], references: [deviceId], onDelete: Cascade)
+  store  Store  @relation(fields: [storeId], references: [storeCode], onDelete: Cascade)
+  zones  Zone[]
+}
+
+model Zone {
+  id                 String   @id @default(uuid())
+  zoneCode           String
+  storeId            String
+  cameraId           String?
+  name               String
+  zoneType           String
+  polygonCoordinates Json
+  thresholds         Json?
+  isActive           Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  store  Store   @relation(fields: [storeId], references: [storeCode], onDelete: Cascade)
+  camera Camera? @relation(fields: [cameraId], references: [cameraId], onDelete: SetNull)
+
+  @@unique([storeId, zoneCode])
+}
+
+model Event {
+  id            String   @id @default(uuid())
+  eventId       String   @unique
+  eventVersion  String   @default("1.0")
+  eventType     String
+  deviceId      String
+  storeId       String
+  zoneId        String?
+  timestamp     DateTime
+  confidence    Float
+  severity      String
+  metadata      Json
+  source        Json
+  schemaVersion String   @default("1.0")
+  receivedAt    DateTime @default(now())
+
+  store  Store   @relation(fields: [storeId], references: [storeCode], onDelete: Restrict)
+  device Device? @relation(fields: [deviceId], references: [deviceId], onDelete: Restrict)
+  alerts Alert[]
+
+  @@index([storeId, timestamp(sort: Desc)])
+  @@index([storeId, zoneId, timestamp(sort: Desc)])
+  @@index([storeId, eventType, timestamp(sort: Desc)])
+}
+
+model Alert {
+  id                   String    @id @default(uuid())
+  alertCode            String    @unique
+  eventId              String
+  storeId              String
+  zoneId               String?
+  alertType            String
+  severity             String
+  status               String    @default("ACTIVE")
+  title                String
+  message              String
+  acknowledgedByUserId String?
+  acknowledgedAt       DateTime?
+  resolvedAt           DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  store          Store  @relation(fields: [storeId], references: [storeCode], onDelete: Restrict)
+  event          Event  @relation(fields: [eventId], references: [eventId], onDelete: Restrict)
+  acknowledgedBy User?  @relation(fields: [acknowledgedByUserId], references: [id], onDelete: SetNull)
+  tasks          Task[]
+
+  @@index([storeId, status, createdAt(sort: Desc)])
+}
+
+model Task {
+  id               String    @id @default(uuid())
+  taskCode         String    @unique
+  storeId          String
+  zoneId           String?
+  alertId          String?
+  title            String
+  description      String?
+  priority         String    @default("MEDIUM")
+  status           String    @default("DETECTED")
+  assignedToUserId String?
+  assignedAt       DateTime?
+  completedAt      DateTime?
+  resolutionNotes  String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  store      Store  @relation(fields: [storeId], references: [storeCode], onDelete: Restrict)
+  alert      Alert? @relation(fields: [alertId], references: [id], onDelete: SetNull)
+  assignedTo User?  @relation(fields: [assignedToUserId], references: [id], onDelete: SetNull)
+
+  @@index([storeId, assignedToUserId, status])
+  @@index([storeId, status])
+}
+
+model User {
+  id           String    @id @default(uuid())
+  email        String    @unique
+  passwordHash String
+  fullName     String
+  role         String
+  storeId      String?
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  store              Store?  @relation(fields: [storeId], references: [storeCode], onDelete: Restrict)
+  assignedTasks      Task[]
+  acknowledgedAlerts Alert[]
+}
+
+model Metric {
+  id         String   @id @default(uuid())
+  storeId    String
+  zoneId     String?
+  metricType String
+  value      Float
+  timestamp  DateTime
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  store Store @relation(fields: [storeId], references: [storeCode], onDelete: Restrict)
+
+  @@index([storeId, metricType, timestamp(sort: Desc)])
+}

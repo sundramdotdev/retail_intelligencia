@@ -2,10 +2,14 @@ device:
   id: edge-dev-001
   name: Retail Edge Node 01
 
+store:
+  id: store_001
+  name: Demo Superstore
+
 camera:
   id: camera-01
   name: Camera 01
-  type: network
+  type: usb
   # url can be provided here or overridden via CAMERA_STREAM_URL env var
   # url: "http://example.com/video"
   device_index: 0 # for usb
@@ -73,3 +77,71 @@ zones:
       - [1280, 100]
       - [1280, 600]
       - [900, 600]
+
+intelligence:
+  enabled: true
+  evaluation:
+    interval_seconds: 1.0
+    max_data_age_seconds: 2.0
+  shelf:
+    enabled: true
+    zones:
+      - id: zone-aisle-01
+        name: Aisle 1 Shelf
+        low_stock_threshold: 0.30
+        empty_threshold: 0.10
+        min_persistence_seconds: 3
+        cooldown_seconds: 60
+  queue:
+    enabled: true
+    zones:
+      - id: zone-checkout
+        high_threshold: 3
+        recovery_threshold: 1
+        min_persistence_seconds: 3
+        cooldown_seconds: 60
+  traffic:
+    enabled: true
+    zones:
+      - id: zone-aisle-02
+        window_seconds: 60
+        high_threshold: 5
+        low_threshold: 1
+        recovery_high_threshold: 3
+        recovery_low_threshold: 2
+        min_persistence_seconds: 5
+        cooldown_seconds: 60
+  dwell:
+    enabled: true
+    zones:
+      - id: zone-aisle-01
+        min_duration_seconds: 10
+        cooldown_seconds: 30
+
+mqtt:
+  enabled: true
+  host: localhost
+  port: 1883
+  tls: false
+  username: null
+  password: null
+  environment: dev
+  keepalive_seconds: 30
+  reconnect:
+    initial_delay_seconds: 1.0
+    max_delay_seconds: 60.0
+
+backend:
+  enabled: true
+  base_url: http://localhost:8000
+  api_version: v1
+  device_token: devkey_edge_001_secret
+  timeout_seconds: 5.0
+  heartbeat_interval_seconds: 15
+
+offline_queue:
+  db_path: data/event_queue.db
+  max_events: 10000
+  max_storage_mb: 100.0
+  batch_size: 50
+  drain_rate_limit: 50
