@@ -12,7 +12,7 @@ from app.camera.rtsp import RTSPCamera
 from app.camera.base import CameraSource
 from app.capture.stream import VideoStreamManager
 from app.capture.frame import resize_frame, validate_frame
-from app.detection.basic import BasicDetector
+from app.vision_pipeline import VisionPipeline
 from app.monitoring.fps import FPSCounter
 from app.monitoring.health import HealthMonitor
 from app.models.status import DeviceState
@@ -77,13 +77,16 @@ def main():
         sys.exit(1)
 
     stream_manager = VideoStreamManager(camera, config)
-    detector = BasicDetector()
+    vision_pipeline = VisionPipeline(config)
     fps_counter = FPSCounter(config.monitoring.fps_window_seconds)
     health_monitor = HealthMonitor(config)
 
-    # Initial Connection
     if not stream_manager.connect():
         logger.error("Initial camera connection failed. Will retry in loop.")
+
+    # Start vision pipeline
+    if config.vision.enabled:
+        vision_pipeline.start()
 
     # Main Loop State
     last_health_check = time.time()
@@ -110,8 +113,23 @@ def main():
                 # Optional Resize
                 frame = resize_frame(frame, config.processing.resize_width, config.processing.resize_height)
                 
-                # Basic Detection
-                result = detector.detect(frame)
+                if config.vision.enabled:
+                    # Vision Pipeline Detection, Tracking, Zones, Observations
+                    detections, tracked_objects, observations = vision_pipeline.process(frame)
+                    fps_counter.record_inference_frame()
+                    
+                    if config.processing.display_enabled:
+                        import cv2
+                        metrics_tuple = fps_counter.get_metrics()
+                        fps_dict = {
+                            "input_fps": metrics_tuple[0].input_fps,
+                            "processing_fps": metrics_tuple[0].processing_fps,
+                            "inference_fps": metrics_tuple[1]
+                        }
+                        debug_frame = vision_pipeline.render_debug(frame, tracked_objects, fps_dict)
+                        cv2.imshow("Retail Intelligencia - Phase 2 Debug", debug_frame)
+                        if cv2.waitKey(1) & 0xFF == ord('q'):
+                            running = False
                 
                 fps_counter.record_processed_frame()
 
@@ -120,8 +138,23 @@ def main():
         if current_time - last_health_check >= health_interval:
             last_health_check = current_time
             
-            fps = fps_counter.get_metrics()
-            health = health_monitor.get_health()
+            fps_metrics, inf_fps = fps_counter.get_metrics()
+            
+            vision_health = None
+            if config.vision.enabled:
+                vh_data = vision_pipeline.get_health_metrics()
+                from app.models.status import VisionHealth
+                vision_health = VisionHealth(
+                    detector_status=vh_data["detector_status"],
+                    model_loaded=vh_data["model_loaded"],
+                    tracker_status=vh_data["tracker_status"],
+                    inference_fps=inf_fps,
+                    inference_latency_ms=vh_data["inference_latency_ms"],
+                    active_track_count=vh_data["active_track_count"],
+                    last_inference_timestamp=current_time
+                )
+                
+            health = health_monitor.get_health(vision_health=vision_health)
             metadata = stream_manager.camera.get_metadata()
             
             resolution = f"{metadata.get('width', 'unknown')}x{metadata.get('height', 'unknown')}"
@@ -129,15 +162,25 @@ def main():
             logger.info(
                 f"Status: {device_status.value} | "
                 f"Res: {resolution} | "
-                f"In FPS: {fps.input_fps} | "
-                f"Proc FPS: {fps.processing_fps} | "
+                f"In FPS: {fps_metrics.input_fps} | "
+                f"Proc FPS: {fps_metrics.processing_fps} | "
+                f"Inf FPS: {inf_fps} | "
                 f"CPU: {health.cpu_usage_percent}% | "
                 f"RAM: {health.memory_usage_percent}%"
             )
+            
+            if config.vision.enabled and vision_health:
+                logger.info(
+                    f"[VISION] Det: {vision_health.detector_status} | "
+                    f"Lat: {vision_health.inference_latency_ms:.1f}ms | "
+                    f"Tracks: {vision_health.active_track_count}"
+                )
 
     # Graceful Shutdown
     logger.info("Stopping processing...")
     device_status = DeviceState.STOPPING
+    if config.vision.enabled:
+        vision_pipeline.stop()
     stream_manager.disconnect()
     logger.info("Resources released. Exiting.")
 

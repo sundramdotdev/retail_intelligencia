@@ -24,6 +24,15 @@ class CameraInfo(BaseModel):
     url: Optional[str] = None
     type: str
 
+class VisionHealth(BaseModel):
+    detector_status: str
+    model_loaded: bool
+    tracker_status: str
+    inference_fps: float
+    inference_latency_ms: float
+    active_track_count: int
+    last_inference_timestamp: float
+
 class SystemHealth(BaseModel):
     cpu_usage_percent: float
     memory_usage_percent: float
@@ -32,6 +41,7 @@ class SystemHealth(BaseModel):
     gpu_usage_percent: Optional[float] = None
     gpu_memory_usage: Optional[float] = None
     gpu_temperature: Optional[float] = None
+    vision: Optional[VisionHealth] = None
 
 class DeviceInfo(BaseModel):
     device_id: str

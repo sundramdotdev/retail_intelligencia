@@ -29,3 +29,47 @@ monitoring:
 
 logging:
   level: INFO
+
+vision:
+  enabled: true
+  detector:
+    type: yolo
+    model: models/yolo11n.pt
+    confidence_threshold: 0.40
+    iou_threshold: 0.50
+    device: auto
+  classes:
+    enabled:
+      - person
+      - bottle
+      - cup
+      - backpack
+  tracking:
+    enabled: true
+    max_lost_frames: 30
+
+zones:
+  - id: zone-aisle-01
+    name: Aisle 1
+    enabled: true
+    polygon:
+      - [100, 100]
+      - [500, 100]
+      - [500, 600]
+      - [100, 600]
+  - id: zone-aisle-02
+    name: Aisle 2
+    enabled: true
+    polygon:
+      - [500, 100]
+      - [900, 100]
+      - [900, 600]
+      - [500, 600]
+  - id: zone-checkout
+    name: Checkout
+    enabled: true
+    polygon:
+      - [900, 100]
+      - [1280, 100]
+      - [1280, 600]
+      - [900, 600]

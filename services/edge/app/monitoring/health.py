@@ -1,6 +1,6 @@
 import psutil
 from typing import Optional
-from app.models.status import SystemHealth
+from app.models.status import SystemHealth, VisionHealth
 from app.config.settings import Settings
 import logging
 
@@ -10,7 +10,7 @@ class HealthMonitor:
     def __init__(self, config: Settings):
         self.thresholds = config.monitoring.health
 
-    def get_health(self) -> SystemHealth:
+    def get_health(self, vision_health: Optional[VisionHealth] = None) -> SystemHealth:
         cpu_usage = psutil.cpu_percent(interval=None) # Non-blocking
         mem = psutil.virtual_memory()
         disk = psutil.disk_usage('/')
@@ -22,7 +22,8 @@ class HealthMonitor:
             disk_usage_percent=disk.percent,
             gpu_usage_percent=None, # Mocked for now unless specific hardware found
             gpu_memory_usage=None,
-            gpu_temperature=None
+            gpu_temperature=None,
+            vision=vision_health
         )
         
         self._check_thresholds(health)

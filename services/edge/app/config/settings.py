@@ -37,12 +37,40 @@ class MonitoringConfig(BaseModel):
 class LoggingConfig(BaseModel):
     level: str
 
+class DetectorConfig(BaseModel):
+    type: str
+    model: str
+    confidence_threshold: float
+    iou_threshold: float
+    device: str
+
+class ClassesConfig(BaseModel):
+    enabled: list[str]
+
+class TrackingConfig(BaseModel):
+    enabled: bool
+    max_lost_frames: int
+
+class VisionConfig(BaseModel):
+    enabled: bool
+    detector: DetectorConfig
+    classes: ClassesConfig
+    tracking: TrackingConfig
+
+class ZoneConfig(BaseModel):
+    id: str
+    name: str
+    enabled: bool
+    polygon: list[list[int]]
+
 class Settings(BaseSettings):
     device: DeviceConfig
     camera: CameraConfig
     processing: ProcessingConfig
     monitoring: MonitoringConfig
     logging: LoggingConfig
+    vision: VisionConfig
+    zones: list[ZoneConfig]
 
     class Config:
         env_nested_delimiter = '__'
