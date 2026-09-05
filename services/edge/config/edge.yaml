@@ -1,0 +1,31 @@
+device:
+  id: edge-dev-001
+  name: Retail Edge Node 01
+
+camera:
+  id: camera-01
+  name: Camera 01
+  type: network
+  # url can be provided here or overridden via CAMERA_STREAM_URL env var
+  # url: "http://example.com/video"
+  device_index: 0 # for usb
+
+processing:
+  target_fps: 10
+  resize_width: 1280
+  resize_height: 720
+  display_enabled: false
+
+monitoring:
+  health_interval_seconds: 5
+  fps_window_seconds: 5
+  health:
+    cpu_warning_percent: 80.0
+    cpu_critical_percent: 95.0
+    memory_warning_percent: 80.0
+    memory_critical_percent: 95.0
+    disk_warning_percent: 80.0
+    disk_critical_percent: 90.0
+
+logging:
+  level: INFO

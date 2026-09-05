@@ -14,6 +14,7 @@ flowchart LR
         direction TB
         I1["RTSP Video Streams (H.264/H.265)"]
         I2["USB Video Streams (V4L2)"]
+        I5["Network Video Streams (HTTP/Mobile App - Phase 1)"]
         I3["Store & Zone Config (MQTT /config)"]
         I4["Control Commands (MQTT /control)"]
     end
@@ -42,7 +43,7 @@ flowchart LR
 The edge appliance accepts only two categories of inbound data: **Visual Optical Streams** and **Encrypted Configuration Messages**.
 
 ### 2.1 Optical Stream Ingestion
-* **Format**: Interleaved H.264/H.265 video packets over RTSP/TCP, or raw frames via V4L2 USB drivers.
+* **Format**: Interleaved H.264/H.265 video packets over RTSP/TCP, raw frames via V4L2 USB drivers, or HTTP/MJPEG network streams from mobile camera applications.
 * **Payload Characteristics**:
   * Unauthenticated or local camera digest authentication.
   * In-memory decoding directly into GPU/NPU memory buffers.
