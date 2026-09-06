@@ -3,7 +3,7 @@ import logging
 import ssl
 import threading
 import time
-from typing import Any, Callable, Dict, Optional, Set
+from typing import Any, Callable, Dict, Optional, Set, Tuple
 
 try:
     import paho.mqtt.client as mqtt

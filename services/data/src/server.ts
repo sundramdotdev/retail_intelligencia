@@ -75,6 +75,8 @@ export function buildServer() {
   });
 
   // Events (with strict idempotency)
+  // Response includes inline escalation results (alert, task) so the API
+  // Gateway can broadcast SSE ALERT_TRIGGERED without a secondary HTTP call.
   app.post("/internal/events", async (req: any) => {
     const rawEvents = Array.isArray(req.body?.events)
       ? req.body.events
@@ -85,17 +87,26 @@ export function buildServer() {
     let acceptedCount = 0;
     let duplicateCount = 0;
     const results: any[] = [];
+    const escalations: any[] = []; // [{eventId, alert, task}]
 
     for (const raw of rawEvents) {
       const { event, isDuplicate } = await eventRepo.insertOrGet(raw);
       if (isDuplicate) {
         duplicateCount++;
+        results.push({ eventId: event.eventId, isDuplicate: true });
       } else {
         acceptedCount++;
-        // Trigger business escalation rule engine
-        await escalationEngine.processEvent(event);
+        // Run the escalation engine — may create alert + task
+        const escalationResult = await escalationEngine.processEvent(event);
+        results.push({ eventId: event.eventId, isDuplicate: false });
+        if (escalationResult.alert) {
+          escalations.push({
+            eventId: event.eventId,
+            alert: escalationResult.alert,
+            task: escalationResult.task || null,
+          });
+        }
       }
-      results.push({ eventId: event.eventId, isDuplicate });
     }
 
     return {
@@ -103,6 +114,7 @@ export function buildServer() {
       duplicateCount,
       totalProcessed: rawEvents.length,
       results,
+      escalations, // API Gateway uses this to broadcast ALERT_TRIGGERED via SSE
     };
   });
 

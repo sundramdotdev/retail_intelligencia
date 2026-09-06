@@ -46,7 +46,13 @@ class DataServiceClient:
         }
 
     async def ingest_events(self, events: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """Send events to Data Service for idempotent insertion and alert escalation."""
+        """Send events to Data Service for idempotent insertion and alert escalation.
+
+        Returns:
+          {acceptedCount, duplicateCount, totalProcessed, results, escalations}
+          escalations: [{eventId, alert, task}] — used by the MQTT consumer to
+          broadcast ALERT_TRIGGERED and TASK_UPDATED over SSE without extra calls.
+        """
         endpoint = f"{self.base_url}/internal/events"
         try:
             async with httpx.AsyncClient(timeout=3.0) as client:
@@ -59,6 +65,7 @@ class DataServiceClient:
         # Fallback local handler
         accepted = 0
         duplicate = 0
+        escalations = []
         for evt in events:
             eid = evt["eventId"]
             if eid in self._fallback_events:
@@ -66,25 +73,45 @@ class DataServiceClient:
             else:
                 accepted += 1
                 self._fallback_events[eid] = evt
-                # If shelf/queue, create fallback alert
-                if evt.get("eventType") in ("SHELF_EMPTY", "QUEUE_HIGH"):
+                # If operational event type, create fallback alert + task
+                if evt.get("eventType") in ("SHELF_EMPTY", "SHELF_LOW_STOCK", "QUEUE_HIGH", "TRAFFIC_HIGH", "ZONE_DWELL"):
                     alt_code = f"alt_{len(self._fallback_alerts) + 1}"
-                    self._fallback_alerts.append({
-                        "alertId": alt_code,
+                    alert = {
+                        "id": alt_code,
+                        "alertCode": alt_code,
                         "eventId": eid,
                         "storeId": evt["storeId"],
                         "zoneId": evt.get("zoneId"),
                         "alertType": evt["eventType"],
                         "severity": evt.get("severity", "HIGH"),
                         "status": "ACTIVE",
-                        "message": f"{evt['eventType']} in {evt.get('zoneId')}",
+                        "title": f"{evt['eventType'].replace('_', ' ')} — {evt.get('zoneId')}",
+                        "message": f"{evt['eventType']} detected in zone {evt.get('zoneId')}.",
                         "createdAt": evt.get("timestamp"),
-                    })
+                    }
+                    self._fallback_alerts.append(alert)
+                    task = None
+                    if evt.get("eventType") in ("SHELF_EMPTY", "SHELF_LOW_STOCK", "QUEUE_HIGH", "TRAFFIC_HIGH"):
+                        task_code = f"tsk_{len(self._fallback_tasks) + 1}"
+                        task = {
+                            "id": task_code,
+                            "taskCode": task_code,
+                            "storeId": evt["storeId"],
+                            "zoneId": evt.get("zoneId"),
+                            "alertId": alt_code,
+                            "title": f"Staff Action — {evt.get('zoneId')}",
+                            "priority": "HIGH",
+                            "status": "DETECTED",
+                        }
+                        self._fallback_tasks.append(task)
+                    escalations.append({"eventId": eid, "alert": alert, "task": task})
 
         return {
             "acceptedCount": accepted,
             "duplicateCount": duplicate,
             "totalProcessed": len(events),
+            "results": [],
+            "escalations": escalations,
         }
 
     async def get_events(self, store_id: str, limit: int = 50, zone_id: Optional[str] = None) -> List[Dict[str, Any]]:

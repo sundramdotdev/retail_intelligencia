@@ -23,25 +23,44 @@ export class EscalationEngine {
     const lastFired = this.lastAlertTimes.get(cooldownKey) || 0;
 
     if (now - lastFired < this.defaultCooldownSeconds * 1000) {
-      // Cooldown active; suppress duplicate operational noise
+      // Cooldown active — suppress duplicate operational noise at backend level
       return {};
     }
 
     this.lastAlertTimes.set(cooldownKey, now);
 
-    // 1. Create Alert
-    const alertCode = `alt_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
-    let title = `${event.eventType.replace("_", " ")} at ${zoneId}`;
-    let message = `Operational threshold crossed in zone ${zoneId} (Confidence: ${Math.round(event.confidence * 100)}%).`;
+    // ── 1. Build alert title and message per event type ──────────────────────
+    let title: string;
+    let message: string;
 
-    if (event.eventType.startsWith("SHELF_")) {
-      const occ = event.metadata?.occupancyPercentage ?? "0";
+    if (event.eventType === "SHELF_EMPTY") {
+      title = `Shelf Empty — ${zoneId}`;
+      message = `A shelf section is completely empty in ${zoneId}. Immediate restock required.`;
+    } else if (event.eventType === "SHELF_LOW_STOCK") {
+      const occ = event.metadata?.occupancyPercentage ?? "low";
+      title = `Low Stock Alert — ${zoneId}`;
       message = `Shelf inventory dropped to ${occ}% in ${zoneId}. Restock needed.`;
     } else if (event.eventType === "QUEUE_HIGH") {
-      const cnt = event.metadata?.queueCount ?? "several";
-      message = `Queue count reached ${cnt} patrons in ${zoneId}. Staff assistance required.`;
+      const cnt = event.metadata?.peopleCount ?? event.metadata?.queueCount ?? "several";
+      const threshold = event.metadata?.threshold ?? "configured limit";
+      title = `Checkout Queue High — ${zoneId}`;
+      message = `Queue count reached ${cnt} patrons (threshold: ${threshold}) at ${zoneId}. Staff assistance required immediately.`;
+    } else if (event.eventType === "TRAFFIC_HIGH") {
+      const cnt = event.metadata?.entryCount ?? "elevated";
+      const window = event.metadata?.windowSeconds ?? "recent";
+      title = `High Foot Traffic — ${zoneId}`;
+      message = `${cnt} people detected in ${zoneId} over the last ${window}s. Consider deploying additional floor staff.`;
+    } else if (event.eventType === "ZONE_DWELL") {
+      const dur = event.metadata?.durationSeconds ?? "extended";
+      title = `Extended Dwell Detected — ${zoneId}`;
+      message = `A customer has been in ${zoneId} for ${dur} seconds. A staff member may be needed.`;
+    } else {
+      title = `${event.eventType.replace(/_/g, " ")} — ${zoneId}`;
+      message = `Operational threshold crossed in zone ${zoneId} (Confidence: ${Math.round(event.confidence * 100)}%).`;
     }
 
+    // ── 2. Persist Alert ──────────────────────────────────────────────────────
+    const alertCode = `alt_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
     const alert = await this.alertRepo.create({
       alertCode,
       eventId: event.eventId,
@@ -54,21 +73,59 @@ export class EscalationEngine {
       message,
     });
 
-    // 2. Create Task for actionable shelf restock or queue support
+    // ── 3. Create actionable Task for events requiring physical staff action ──
     let task: TaskDTO | undefined;
-    if (event.eventType === "SHELF_EMPTY" || event.eventType === "SHELF_LOW_STOCK") {
+
+    if (event.eventType === "SHELF_EMPTY") {
       const taskCode = `tsk_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
       task = await this.taskRepo.create({
         taskCode,
         storeId: event.storeId,
         zoneId: event.zoneId,
         alertId: alert.id,
-        title: `Restock Shelf ${zoneId}`,
-        description: `Replenish shelf stock after notification: ${message}`,
-        priority: event.severity === "CRITICAL" || event.eventType === "SHELF_EMPTY" ? "URGENT" : "HIGH",
+        title: `Emergency Restock — ${zoneId}`,
+        description: `Shelf is completely empty. Immediately bring replacement stock to ${zoneId}. ${message}`,
+        priority: "URGENT",
+        status: "DETECTED",
+      });
+    } else if (event.eventType === "SHELF_LOW_STOCK") {
+      const taskCode = `tsk_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+      task = await this.taskRepo.create({
+        taskCode,
+        storeId: event.storeId,
+        zoneId: event.zoneId,
+        alertId: alert.id,
+        title: `Restock Shelf — ${zoneId}`,
+        description: `Replenish shelf stock in ${zoneId}. ${message}`,
+        priority: "HIGH",
+        status: "DETECTED",
+      });
+    } else if (event.eventType === "QUEUE_HIGH") {
+      const taskCode = `tsk_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+      task = await this.taskRepo.create({
+        taskCode,
+        storeId: event.storeId,
+        zoneId: event.zoneId,
+        alertId: alert.id,
+        title: `Open Additional Checkout — ${zoneId}`,
+        description: `Queue depth has exceeded threshold. Open an additional register or redirect available staff to ${zoneId}. ${message}`,
+        priority: "HIGH",
+        status: "DETECTED",
+      });
+    } else if (event.eventType === "TRAFFIC_HIGH") {
+      const taskCode = `tsk_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+      task = await this.taskRepo.create({
+        taskCode,
+        storeId: event.storeId,
+        zoneId: event.zoneId,
+        alertId: alert.id,
+        title: `Deploy Floor Staff — ${zoneId}`,
+        description: `Foot traffic significantly elevated in ${zoneId}. Station additional staff to assist customers. ${message}`,
+        priority: "MEDIUM",
         status: "DETECTED",
       });
     }
+    // ZONE_DWELL creates alert only (no staff task — just visibility)
 
     return { alert, task };
   }

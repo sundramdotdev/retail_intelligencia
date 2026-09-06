@@ -7,11 +7,17 @@ Subscribes to canonical MQTT topics:
 
 Validates message envelope, topic-payload consistency, and forwards
 to the TypeScript Data Service via internal HTTP contract.
+
+After ingestion, broadcasts SSE events to connected dashboard clients:
+  - EVENT_RECEIVED   : every validated retail event
+  - ALERT_TRIGGERED  : when the escalation engine creates a new alert
+  - TASK_CREATED     : when the escalation engine creates a new task
+  - DEVICE_STATUS    : on heartbeat updates
 """
 import asyncio
 import json
 import logging
-from typing import Optional
+from typing import List, Optional
 import paho.mqtt.client as mqtt
 
 from app.core.config import settings
@@ -82,33 +88,111 @@ class GatewayMqttConsumer:
                         logger.warning(f"Rejecting invalid event {evt.get('eventId')}: {val_err}")
 
                 if valid_events and self._loop and not self._loop.is_closed():
+                    # Fire async coroutine: ingest events, then broadcast SSE
                     asyncio.run_coroutine_threadsafe(
-                        data_client.ingest_events(valid_events),
+                        self._ingest_and_broadcast(valid_events, topic_store_id),
                         self._loop,
                     )
-                    # Broadcast to connected SSE dashboard clients
-                    from app.realtime.broadcaster import broadcaster
-                    for evt in valid_events:
-                        broadcaster.broadcast_sync(
-                            store_id=topic_store_id,
-                            event_type="EVENT_RECEIVED",
-                            data=evt,
-                        )
 
             elif channel == "heartbeat":
                 ts = payload.get("timestamp")
+                device_id = payload.get("deviceId", topic_device_id)
                 if ts and self._loop and not self._loop.is_closed():
                     asyncio.run_coroutine_threadsafe(
-                        data_client.update_device_heartbeat(topic_device_id, ts),
+                        self._handle_heartbeat(topic_device_id, ts, topic_store_id),
                         self._loop,
                     )
 
             elif channel == "telemetry":
-                # Telemetry processing
-                logger.debug(f"Received telemetry from device {topic_device_id}: {payload}")
+                # Forward device health telemetry as SSE DEVICE_STATUS
+                if self._loop and not self._loop.is_closed():
+                    from app.realtime.broadcaster import broadcaster
+                    broadcaster.broadcast_sync(
+                        store_id=topic_store_id,
+                        event_type="DEVICE_STATUS",
+                        data={
+                            "deviceId": topic_device_id,
+                            "storeId": topic_store_id,
+                            **payload,
+                        },
+                    )
 
         except Exception as e:
             logger.error(f"Error processing MQTT message on topic {msg.topic}: {e}", exc_info=True)
+
+    async def _ingest_and_broadcast(self, valid_events: List[dict], store_id: str) -> None:
+        """Ingest events into the Data Service, then broadcast SSE events.
+
+        Flow:
+          EVENT_RECEIVED  → broadcast each validated event immediately
+          ALERT_TRIGGERED → broadcast using inline escalation data from Data Service
+          TASK_UPDATED    → broadcast using inline task data from Data Service
+        """
+        from app.realtime.broadcaster import broadcaster
+
+        # 1. Broadcast EVENT_RECEIVED immediately for every validated event
+        for evt in valid_events:
+            await broadcaster.broadcast(
+                store_id=store_id,
+                event_type="EVENT_RECEIVED",
+                data=evt,
+            )
+            logger.info(
+                f"[SSE] EVENT_RECEIVED: {evt.get('eventType')} "
+                f"eventId={evt.get('eventId')} zone={evt.get('zoneId')}"
+            )
+
+        # 2. Forward to Data Service (idempotent insertion + escalation)
+        try:
+            result = await data_client.ingest_events(valid_events)
+            accepted = result.get("acceptedCount", 0)
+            duplicates = result.get("duplicateCount", 0)
+            logger.info(f"Data Service: accepted={accepted} duplicates={duplicates}")
+
+            # 3. Broadcast ALERT_TRIGGERED and TASK_UPDATED from inline escalation results
+            for escalation in result.get("escalations", []):
+                alert = escalation.get("alert")
+                task = escalation.get("task")
+
+                if alert:
+                    await broadcaster.broadcast(
+                        store_id=store_id,
+                        event_type="ALERT_TRIGGERED",
+                        data=alert,
+                    )
+                    logger.info(
+                        f"[SSE] ALERT_TRIGGERED: {alert.get('alertType')} "
+                        f"alertCode={alert.get('alertCode')} severity={alert.get('severity')}"
+                    )
+
+                if task:
+                    await broadcaster.broadcast(
+                        store_id=store_id,
+                        event_type="TASK_UPDATED",
+                        data={**task, "action": "CREATED"},
+                    )
+                    logger.info(
+                        f"[SSE] TASK_UPDATED (CREATED): {task.get('title')} "
+                        f"taskCode={task.get('taskCode')} priority={task.get('priority')}"
+                    )
+
+        except Exception as e:
+            logger.error(f"Error during ingest_and_broadcast: {e}", exc_info=True)
+
+    async def _handle_heartbeat(self, device_id: str, timestamp: str, store_id: str) -> None:
+        """Process device heartbeat and broadcast DEVICE_STATUS over SSE."""
+        from app.realtime.broadcaster import broadcaster
+        await data_client.update_device_heartbeat(device_id, timestamp)
+        await broadcaster.broadcast(
+            store_id=store_id,
+            event_type="DEVICE_STATUS",
+            data={
+                "deviceId": device_id,
+                "storeId": store_id,
+                "lastHeartbeatAt": timestamp,
+                "status": "ONLINE",
+            },
+        )
 
     def start(self, loop: asyncio.AbstractEventLoop):
         if not settings.mqtt_enabled:
@@ -119,7 +203,7 @@ class GatewayMqttConsumer:
         try:
             self.client = mqtt.Client(
                 client_id=f"{settings.mqtt_client_id}-sub",
-                protocol=mqtt.MQTTv5,
+                protocol=mqtt.MQTTv311,
             )
             if settings.mqtt_username and settings.mqtt_password:
                 self.client.username_pw_set(settings.mqtt_username, settings.mqtt_password)

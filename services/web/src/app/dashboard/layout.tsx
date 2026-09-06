@@ -9,16 +9,16 @@ import { Sidebar } from '@/components/dashboard/sidebar';
 import { Header } from '@/components/dashboard/header';
 
 function DashboardShell({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isInitializing } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (!isInitializing && !isAuthenticated) {
       router.replace('/login');
     }
-  }, [isAuthenticated, router]);
+  }, [isAuthenticated, isInitializing, router]);
 
-  if (!isAuthenticated) {
+  if (isInitializing || !isAuthenticated) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'var(--bg-primary)' }}>
         <div className="skeleton w-6 h-6 rounded-full" />
@@ -46,11 +46,5 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
 }
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <AuthProvider>
-      <QueryProvider>
-        <DashboardShell>{children}</DashboardShell>
-      </QueryProvider>
-    </AuthProvider>
-  );
+  return <DashboardShell>{children}</DashboardShell>;
 }
