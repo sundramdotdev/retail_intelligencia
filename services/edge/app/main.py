@@ -72,6 +72,7 @@ def parse_args():
     parser.add_argument("--check-backend", action="store_true", help="Validate backend connectivity and authorization")
     parser.add_argument("--communication-health", action="store_true", help="Show communication and offline queue health")
     parser.add_argument("--preview", action="store_true", help="Run with development preview")
+    parser.add_argument("--object-detection", action="store_true", help="Launch isolated Object Detection observability screen")
     return parser.parse_args()
 
 def main():
@@ -184,6 +185,21 @@ def main():
         print("\nHeartbeat")
         print("Last sent    : Idle")
         print(f"\nSTATUS       : {status_eval}")
+        sys.exit(0)
+        
+    if args.object_detection:
+        # Override config to load all supported model classes for generic testing
+        config.vision.classes.enabled = []
+        
+        # Late import to keep startup fast for other modes
+        try:
+            from app.tools.object_detection_ui import ObjectDetectionApp
+        except ImportError as e:
+            print(f"Error loading UI module: {e}")
+            sys.exit(1)
+            
+        app = ObjectDetectionApp(config)
+        app.run()
         sys.exit(0)
 
     # Setup Logging

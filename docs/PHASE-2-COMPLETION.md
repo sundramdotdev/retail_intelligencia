@@ -53,6 +53,12 @@ When `display.enabled: true` is configured, an OpenCV visualization window overl
 - Polygons with corresponding Zone Names
 - Bounding boxes with Temporary IDs and assigned Zones
 
+## Object Detection Observability
+A dedicated Object Detection screen has been introduced to visually debug the raw generic model output independently of zones and intelligence processing. 
+- Launched via `python -m app.main --object-detection`
+- Bypasses Tracking and Zones to focus entirely on YOLO bounding box confidence.
+- Dynamically renders true model capabilities.
+
 ## Known Limitations
 - The `pip install ultralytics` dependency can be heavy and take significant time to fetch in constrained network environments.
 - YOLO11n provides generic object detection only.
