@@ -26,18 +26,7 @@ async def get_traffic(
 ) -> Dict[str, Any]:
     """Store foot traffic counts by time interval."""
     verify_store_access(user, store_id)
-    return {
-        "storeId": store_id,
-        "interval": interval,
-        "series": [
-            {"time": "09:00", "count": 22},
-            {"time": "10:00", "count": 48},
-            {"time": "11:00", "count": 75},
-            {"time": "12:00", "count": 110},
-            {"time": "13:00", "count": 92},
-            {"time": "14:00", "count": 64},
-        ],
-    }
+    return await data_client.get_traffic(store_id, interval)
 
 
 @router.get("/queues", status_code=status.HTTP_200_OK)
@@ -47,18 +36,7 @@ async def get_queues(
 ) -> Dict[str, Any]:
     """Current checkout and queue performance metrics."""
     verify_store_access(user, store_id)
-    return {
-        "storeId": store_id,
-        "activeRegisters": 4,
-        "zones": [
-            {
-                "zoneId": "zone-checkout",
-                "currentQueueLength": 5,
-                "averageWaitSeconds": 135,
-                "status": "CONGESTED",
-            }
-        ],
-    }
+    return await data_client.get_queues(store_id)
 
 
 @router.get("/dwell", status_code=status.HTTP_200_OK)
@@ -68,13 +46,7 @@ async def get_dwell(
 ) -> Dict[str, Any]:
     """Zone dwell time aggregations."""
     verify_store_access(user, store_id)
-    return {
-        "storeId": store_id,
-        "zones": [
-            {"zoneId": "zone-aisle-01", "name": "Beverages", "averageDwellSeconds": 42},
-            {"zoneId": "zone-checkout", "name": "Checkout Queue", "averageDwellSeconds": 135},
-        ],
-    }
+    return await data_client.get_dwell(store_id)
 
 
 @router.get("/shelves", status_code=status.HTTP_200_OK)
@@ -84,13 +56,4 @@ async def get_shelves(
 ) -> Dict[str, Any]:
     """Shelf stock availability status and incident metrics."""
     verify_store_access(user, store_id)
-    return {
-        "storeId": store_id,
-        "totalShelfZones": 6,
-        "lowStockZones": 1,
-        "emptyZones": 0,
-        "incidentsToday": 3,
-        "zones": [
-            {"zoneId": "zone-aisle-01", "shelfStatus": "LOW_STOCK", "stockPercentage": 18},
-        ],
-    }
+    return await data_client.get_shelves(store_id)

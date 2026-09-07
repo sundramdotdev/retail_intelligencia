@@ -2,7 +2,7 @@ import os
 import yaml
 from pydantic_settings import BaseSettings
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import List, Optional
 
 class DeviceConfig(BaseModel):
     id: str
@@ -117,6 +117,19 @@ class DwellConfig(BaseModel):
     enabled: bool
     zones: list[DwellZoneConfig]
 
+class InventoryZoneConfig(BaseModel):
+    zone_id: str
+    object_class: str
+    target_count: int
+    low_stock_threshold: int
+    recovery_threshold: int
+    min_persistence_seconds: float = 2.0
+    cooldown_seconds: float = 10.0
+
+class InventoryConfig(BaseModel):
+    enabled: bool
+    zones: list[InventoryZoneConfig]
+
 class IntelligenceConfig(BaseModel):
     enabled: bool
     evaluation: EvaluationConfig
@@ -124,6 +137,7 @@ class IntelligenceConfig(BaseModel):
     queue: QueueConfig
     traffic: TrafficConfig
     dwell: DwellConfig
+    inventory: InventoryConfig
 
 class MQTTReconnectConfig(BaseModel):
     initial_delay_seconds: float = 1.0
@@ -157,6 +171,12 @@ class OfflineQueueConfig(BaseModel):
     batch_size: int = 50
     drain_rate_limit: int = 50
 
+class StreamServerConfig(BaseModel):
+    enabled: bool = False
+    host: str = "0.0.0.0"
+    port: int = 8080
+    quality: int = 75
+
 class Settings(BaseSettings):
     device: DeviceConfig
     store: StoreConfig = Field(default_factory=StoreConfig)
@@ -172,7 +192,8 @@ class Settings(BaseSettings):
             tracking=TrackingConfig(enabled=True, max_lost_frames=30)
         )
     )
-    zones: list[ZoneConfig] = Field(default_factory=list)
+    zones: List[ZoneConfig] = Field(default_factory=list)
+    entrance_zone_id: str = "zone-entrance"
     intelligence: IntelligenceConfig = Field(
         default_factory=lambda: IntelligenceConfig(
             enabled=False,
@@ -181,11 +202,13 @@ class Settings(BaseSettings):
             queue=QueueConfig(enabled=False, zones=[]),
             traffic=TrafficConfig(enabled=False, zones=[]),
             dwell=DwellConfig(enabled=False, zones=[]),
+            inventory=InventoryConfig(enabled=False, zones=[]),
         )
     )
     mqtt: MQTTConfig = Field(default_factory=MQTTConfig)
     backend: BackendConfig = Field(default_factory=BackendConfig)
     offline_queue: OfflineQueueConfig = Field(default_factory=OfflineQueueConfig)
+    stream_server: StreamServerConfig = Field(default_factory=StreamServerConfig)
 
     class Config:
         env_nested_delimiter = '__'

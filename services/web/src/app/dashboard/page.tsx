@@ -9,6 +9,7 @@ import { useAlerts } from '@/hooks/use-alerts';
 import { useEvents } from '@/hooks/use-events';
 import { useTasks } from '@/hooks/use-tasks';
 import { useRealtime } from '@/providers/realtime-provider';
+import { InventoryStatus } from '@/components/dashboard/inventory-status';
 
 export default function OverviewPage() {
   const { data: overview, isLoading: loadingOverview } = useAnalyticsOverview();
@@ -67,11 +68,14 @@ export default function OverviewPage() {
 
       {/* Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* System Status */}
-        <div className="surface p-4 space-y-3">
-          <h3 className="text-xs font-mono uppercase tracking-wider" style={{ color: 'var(--text-tertiary)' }}>
-            System Status
-          </h3>
+        {/* System Status & Inventory Status */}
+        <div className="space-y-4">
+          <InventoryStatus />
+          
+          <div className="surface p-4 space-y-3">
+            <h3 className="text-xs font-mono uppercase tracking-wider" style={{ color: 'var(--text-tertiary)' }}>
+              System Status
+            </h3>
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>Store Status</span>

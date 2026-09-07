@@ -9,6 +9,10 @@ import { useAlerts } from '@/hooks/use-alerts';
 import { useEvents } from '@/hooks/use-events';
 import { useZones } from '@/hooks/use-zones';
 import { useAnalyticsOverview } from '@/hooks/use-analytics';
+import { CameraView } from '@/components/dashboard/camera-view';
+import { LiveAnalyticsGrid } from '@/components/dashboard/live-analytics-grid';
+import { LiveZoneOccupancy } from '@/components/dashboard/live-zone-occupancy';
+import { LiveObjectAnalytics } from '@/components/dashboard/live-object-analytics';
 
 export default function LiveStorePage() {
   const { data: zones, isLoading: loadingZones } = useZones();
@@ -39,51 +43,17 @@ export default function LiveStorePage() {
 
       {/* Main Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-        {/* Store Map */}
-        <div className="lg:col-span-3">
+        {/* Store Map & Live Stream */}
+        <div className="lg:col-span-3 flex flex-col gap-4">
+          <CameraView deviceId="edge-dev-001" />
+          <LiveAnalyticsGrid deviceId="edge-dev-001" />
           <StoreMap zones={zones || []} loading={loadingZones} />
 
-          {/* Zone List */}
-          <div className="surface p-4 mt-4">
-            <h3 className="text-xs font-mono uppercase tracking-wider mb-3" style={{ color: 'var(--text-tertiary)' }}>
-              Zone Status
-            </h3>
-            <div className="space-y-2">
-              {loadingZones ? (
-                Array.from({ length: 3 }).map((_, i) => (
-                  <div key={i} className="flex items-center justify-between py-2">
-                    <div className="skeleton h-3 w-32" />
-                    <div className="skeleton h-3 w-16" />
-                  </div>
-                ))
-              ) : zones?.length ? (
-                zones.map((zone) => (
-                  <div
-                    key={zone.zoneCode || zone.zoneId}
-                    className="flex items-center justify-between py-2 border-b border-[var(--border-subtle)] last:border-0"
-                  >
-                    <div>
-                      <span className="text-sm" style={{ color: 'var(--text-primary)' }}>
-                        {zone.name}
-                      </span>
-                      <span className="text-xs font-mono ml-2" style={{ color: 'var(--text-tertiary)' }}>
-                        {zone.zoneType}
-                      </span>
-                    </div>
-                    <span className="text-xs font-mono" style={{ color: zone.isActive !== false ? 'var(--status-online)' : 'var(--text-tertiary)' }}>
-                      {zone.isActive !== false ? 'ACTIVE' : 'INACTIVE'}
-                    </span>
-                  </div>
-                ))
-              ) : (
-                <div className="empty-state py-6">
-                  <h3>No zones configured</h3>
-                  <p>Zones will appear when spatial regions are defined.</p>
-                </div>
-              )}
-            </div>
-          </div>
+          {/* Live Zone Status */}
+          <LiveZoneOccupancy deviceId="edge-dev-001" zones={zones || []} />
+          <LiveObjectAnalytics deviceId="edge-dev-001" />
         </div>
+
 
         {/* Live Events */}
         <div className="lg:col-span-2 surface p-4">

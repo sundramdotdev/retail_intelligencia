@@ -327,5 +327,60 @@ class DataServiceClient:
             "deviceHealthStatus": "ONLINE",
         }
 
+    async def get_traffic(self, store_id: str, interval: str) -> Dict[str, Any]:
+        endpoint = f"{self.base_url}/internal/analytics/traffic"
+        try:
+            async with httpx.AsyncClient(timeout=3.0) as client:
+                res = await client.get(endpoint, params={"storeId": store_id, "interval": interval}, headers=self._get_headers())
+                if res.status_code == 200:
+                    return res.json()
+        except Exception:
+            pass
+        return {"storeId": store_id, "interval": interval, "series": []}
+
+    async def get_queues(self, store_id: str) -> Dict[str, Any]:
+        endpoint = f"{self.base_url}/internal/analytics/queues"
+        try:
+            async with httpx.AsyncClient(timeout=3.0) as client:
+                res = await client.get(endpoint, params={"storeId": store_id}, headers=self._get_headers())
+                if res.status_code == 200:
+                    return res.json()
+        except Exception:
+            pass
+        return {"storeId": store_id, "activeRegisters": 0, "zones": []}
+
+    async def get_dwell(self, store_id: str) -> Dict[str, Any]:
+        endpoint = f"{self.base_url}/internal/analytics/dwell"
+        try:
+            async with httpx.AsyncClient(timeout=3.0) as client:
+                res = await client.get(endpoint, params={"storeId": store_id}, headers=self._get_headers())
+                if res.status_code == 200:
+                    return res.json()
+        except Exception:
+            pass
+        return {"storeId": store_id, "zones": []}
+
+    async def get_shelves(self, store_id: str) -> Dict[str, Any]:
+        endpoint = f"{self.base_url}/internal/analytics/shelves"
+        try:
+            async with httpx.AsyncClient(timeout=3.0) as client:
+                res = await client.get(endpoint, params={"storeId": store_id}, headers=self._get_headers())
+                if res.status_code == 200:
+                    return res.json()
+        except Exception:
+            pass
+        return {"storeId": store_id, "totalShelfZones": 0, "lowStockZones": 0, "emptyZones": 0, "incidentsToday": 0, "zones": []}
+
+    async def get_historical_metrics(self, store_id: str, metric_type: str, limit: int) -> Dict[str, Any]:
+        endpoint = f"{self.base_url}/internal/metrics"
+        try:
+            async with httpx.AsyncClient(timeout=3.0) as client:
+                res = await client.get(endpoint, params={"storeId": store_id, "metricType": metric_type, "limit": limit}, headers=self._get_headers())
+                if res.status_code == 200:
+                    return res.json()
+        except Exception:
+            pass
+        return {"storeId": store_id, "metricType": metric_type, "metrics": []}
+
 
 data_client = DataServiceClient()

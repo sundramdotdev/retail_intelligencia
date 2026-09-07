@@ -10,19 +10,28 @@ import React, { createContext, useContext, useEffect, useState, useCallback, use
 import { useQueryClient } from '@tanstack/react-query';
 import { sseClient } from '@/lib/sse-client';
 import { useAuth } from '@/lib/auth';
-import type { ConnectionState, SSEEvent } from '@/lib/types';
+import type { ConnectionState, SSEEvent, CanonicalRetailEvent, Alert, Task, DeviceStatus, ZoneTelemetry, LiveMetrics } from '@/lib/types';
+
+interface RealtimeState {
+  events: CanonicalRetailEvent[];
+  alerts: Alert[];
+  tasks: Task[];
+  deviceStatus: Record<string, DeviceStatus>;
+  zoneTelemetry: Record<string, ZoneTelemetry>;
+  liveMetrics: Record<string, LiveMetrics>;
+  isConnected: boolean;
+  error: string | null;
+  lastEventTime: Date | null;
+}
 
 interface RealtimeContextValue {
   connectionState: ConnectionState;
   lastEvent: SSEEvent | null;
   eventCount: number;
+  state: RealtimeState;
 }
 
-const RealtimeContext = createContext<RealtimeContextValue>({
-  connectionState: 'OFFLINE',
-  lastEvent: null,
-  eventCount: 0,
-});
+const RealtimeContext = createContext<RealtimeContextValue | undefined>(undefined);
 
 export function RealtimeProvider({ children }: { children: React.ReactNode }) {
   const { session } = useAuth();
@@ -31,6 +40,17 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
   const [lastEvent, setLastEvent] = useState<SSEEvent | null>(null);
   const [eventCount, setEventCount] = useState(0);
   const eventCountRef = useRef(0);
+  const [state, setState] = useState<RealtimeState>({
+    events: [],
+    alerts: [],
+    tasks: [],
+    deviceStatus: {},
+    zoneTelemetry: {},
+    liveMetrics: {},
+    isConnected: false,
+    error: null,
+    lastEventTime: null,
+  });
 
   useEffect(() => {
     if (!session?.storeId) return;
@@ -57,10 +77,24 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
           queryClient.invalidateQueries({ queryKey: ['tasks'] });
           break;
         case 'DEVICE_STATUS':
+          setState(prev => ({
+            ...prev,
+            deviceStatus: { ...prev.deviceStatus, [event.deviceId as string]: event as unknown as DeviceStatus }
+          }));
           queryClient.invalidateQueries({ queryKey: ['devices'] });
           break;
         case 'ZONE_TELEMETRY':
+          setState(prev => ({
+            ...prev,
+            zoneTelemetry: { ...prev.zoneTelemetry, [event.zoneId as string]: event as unknown as ZoneTelemetry }
+          }));
           queryClient.invalidateQueries({ queryKey: ['zones'] });
+          break;
+        case 'LIVE_METRICS':
+          setState(prev => ({
+            ...prev,
+            liveMetrics: { ...prev.liveMetrics, [event.deviceId as string]: event as unknown as LiveMetrics }
+          }));
           break;
       }
     });
@@ -76,12 +110,26 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
   }, [session?.storeId, session?.token, queryClient]);
 
   return (
-    <RealtimeContext.Provider value={{ connectionState, lastEvent, eventCount }}>
+    <RealtimeContext.Provider value={{ connectionState, lastEvent, eventCount, state }}>
       {children}
     </RealtimeContext.Provider>
   );
 }
 
 export function useRealtime() {
-  return useContext(RealtimeContext);
+  const context = useContext(RealtimeContext);
+  if (context === undefined) throw new Error('Must be used within RealtimeProvider');
+  return context;
+}
+
+export function useDeviceStatus() {
+  const context = useContext(RealtimeContext);
+  if (context === undefined) throw new Error('Must be used within RealtimeProvider');
+  return context.state.deviceStatus;
+}
+
+export function useLiveMetrics() {
+  const context = useContext(RealtimeContext);
+  if (context === undefined) throw new Error('Must be used within RealtimeProvider');
+  return context.state.liveMetrics;
 }

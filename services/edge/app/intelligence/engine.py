@@ -14,6 +14,7 @@ from app.intelligence.rules.shelf import ShelfRule
 from app.intelligence.rules.queue import QueueRule
 from app.intelligence.rules.traffic import TrafficRule
 from app.intelligence.rules.dwell import DwellRule
+from app.intelligence.rules.inventory import InventoryRule
 
 logger = logging.getLogger("intelligence")
 
@@ -53,6 +54,10 @@ class RetailIntelligenceEngine:
         if conf.dwell.enabled:
             for zc in conf.dwell.zones:
                 self.rules.append(DwellRule(zc, self.state_manager, self.debouncer, self.event_factory))
+                
+        if conf.inventory.enabled:
+            for zc in conf.inventory.zones:
+                self.rules.append(InventoryRule(zc, self.state_manager, self.debouncer, self.event_factory))
                 
         logger.info(f"Initialized {len(self.rules)} retail rules.")
 

@@ -8,6 +8,7 @@ from app.api.v1.alerts import router as alerts_router
 from app.api.v1.tasks import router as tasks_router
 from app.api.v1.analytics import router as analytics_router
 from app.api.v1.realtime import router as realtime_router
+from app.api.v1.metrics import router as metrics_router
 
 api_v1_router = APIRouter(prefix="/api/v1")
 
@@ -18,5 +19,6 @@ api_v1_router.include_router(alerts_router)
 api_v1_router.include_router(tasks_router)
 api_v1_router.include_router(analytics_router)
 api_v1_router.include_router(realtime_router)
+api_v1_router.include_router(metrics_router)
 
 __all__ = ["api_v1_router"]

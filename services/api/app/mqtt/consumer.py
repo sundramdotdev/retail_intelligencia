@@ -23,6 +23,7 @@ import paho.mqtt.client as mqtt
 from app.core.config import settings
 from app.clients.data_service import data_client
 from app.models.retail_event import CanonicalRetailEvent
+from app.realtime.metrics_store import live_metrics_store
 
 logger = logging.getLogger("api.mqtt_consumer")
 
@@ -42,6 +43,7 @@ class GatewayMqttConsumer:
             client.subscribe(f"retail/{settings.environment}/+/+/events", qos=1)
             client.subscribe(f"retail/{settings.environment}/+/+/heartbeat", qos=1)
             client.subscribe(f"retail/{settings.environment}/+/+/telemetry", qos=1)
+            client.subscribe(f"retail/{settings.environment}/+/+/metrics", qos=0)
             logger.info(f"Subscribed to topics for environment: {settings.environment}")
         else:
             self.is_connected = False
@@ -116,6 +118,29 @@ class GatewayMqttConsumer:
                             **payload,
                         },
                     )
+
+            elif channel == "metrics":
+                # Update in-memory live metrics store
+                live_metrics_store.update(topic_store_id, topic_device_id, payload)
+                
+                # Broadcast LIVE_METRICS via SSE
+                if self._loop and not self._loop.is_closed():
+                    from app.realtime.broadcaster import broadcaster
+                    metrics_summary = live_metrics_store.get_for_device(topic_device_id)
+                    if metrics_summary:
+                        broadcaster.broadcast_sync(
+                            store_id=topic_store_id,
+                            event_type="LIVE_METRICS",
+                            data=metrics_summary,
+                        )
+                        # Also forward to ZONE_TELEMETRY if zone occupancy is present
+                        zone_occ = metrics_summary.get("zoneOccupancy")
+                        if zone_occ:
+                            broadcaster.broadcast_sync(
+                                store_id=topic_store_id,
+                                event_type="ZONE_TELEMETRY",
+                                data={"storeId": topic_store_id, "deviceId": topic_device_id, "occupancy": zone_occ},
+                            )
 
         except Exception as e:
             logger.error(f"Error processing MQTT message on topic {msg.topic}: {e}", exc_info=True)

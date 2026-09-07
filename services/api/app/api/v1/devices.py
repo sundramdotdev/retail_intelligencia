@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from app.auth.device import AuthenticatedDevice, get_authenticated_device
 from app.auth.human import AuthenticatedUser, get_current_user
 from app.clients.data_service import data_client
+from app.realtime.metrics_store import live_metrics_store
 
 router = APIRouter(prefix="/devices", tags=["Devices"])
 
@@ -71,12 +72,24 @@ async def get_device_health(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"error": {"code": "DEVICE_NOT_FOUND", "message": f"Device '{device_id}' not found."}},
         )
+    live_data = live_metrics_store.get_for_device(device_id) or {}
+    
     return {
         "deviceId": device_id,
-        "status": device.get("status", "ONLINE"),
+        "status": "ONLINE" if live_data and not live_data.get("isStale") else device.get("status", "OFFLINE"),
         "lastHeartbeatAt": device.get("lastHeartbeatAt"),
         "connectedCamerasCount": device.get("connectedCamerasCount", 1),
         "activeZonesCount": device.get("activeZonesCount", 3),
+        "cpuUtilizationPercent": live_data.get("hardware", {}).get("cpuPercent"),
+        "gpuUtilizationPercent": live_data.get("hardware", {}).get("gpuPercent"),
+        "memoryUsedMb": live_data.get("hardware", {}).get("ramUsedMb"),
+        "memoryTotalMb": live_data.get("hardware", {}).get("ramTotalMb"),
+        "vision": live_data.get("vision"),
+        "analytics": {
+            "peopleNow": live_data.get("peopleNow"),
+            "footfallToday": live_data.get("footfallToday"),
+            "activeObjects": live_data.get("activeObjects"),
+        } if live_data else None
     }
 
 

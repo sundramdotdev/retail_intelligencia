@@ -107,22 +107,6 @@ services:
     depends_on:
       - api-gateway
 
-  # ============================================================================
-  # Engineering Portfolio (Next.js)
-  # Public-facing showcase website
-  # ============================================================================
-  portfolio:
-    build:
-      context: ./services/portfolio
-      dockerfile: Dockerfile
-    container_name: retail-portfolio
-    restart: unless-stopped
-    ports:
-      - "3001:3000"
-    environment:
-      NODE_ENV: production
-      PORT: 3000
-
 volumes:
   postgres_data:
     driver: local

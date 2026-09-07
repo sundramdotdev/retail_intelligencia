@@ -7,6 +7,7 @@ import { ZoneRepository } from "./repositories/zone.repository";
 import { AlertRepository } from "./repositories/alert.repository";
 import { TaskRepository } from "./repositories/task.repository";
 import { MetricRepository } from "./repositories/metric.repository";
+import { AnalyticsRepository } from "./repositories/analytics.repository";
 import { EscalationEngine } from "./rules/escalation";
 
 export function buildServer() {
@@ -20,6 +21,7 @@ export function buildServer() {
   const alertRepo = new AlertRepository();
   const taskRepo = new TaskRepository();
   const metricRepo = new MetricRepository();
+  const analyticsRepo = new AnalyticsRepository();
   const escalationEngine = new EscalationEngine(alertRepo, taskRepo);
 
   // Health / Readiness
@@ -197,49 +199,66 @@ export function buildServer() {
     return summary;
   });
 
-  app.get("/internal/analytics/traffic", async (req: any) => {
-    return {
-      storeId: req.query?.storeId || "store_001",
-      hourlyTraffic: [
-        { hour: "08:00", count: 12 },
-        { hour: "09:00", count: 28 },
-        { hour: "10:00", count: 45 },
-        { hour: "11:00", count: 52 },
-        { hour: "12:00", count: 68 },
-      ],
-      currentOccupancy: 34,
-    };
+  app.get("/internal/analytics/traffic", async (request: any, reply) => {
+    const { storeId, interval } = request.query as any;
+    const series = await analyticsRepo.getTrafficSeries(storeId, interval || "hour");
+    return { storeId, interval, series };
   });
 
-  app.get("/internal/analytics/queues", async (req: any) => {
+  app.get("/internal/analytics/queues", async (request: any, reply) => {
+    const { storeId } = request.query as any;
+    const activeQueues = await alertRepo.findActive(storeId || "store_001", "ACTIVE");
+    const queueAlerts = activeQueues.filter(a => a.alertType === "QUEUE_HIGH");
+    
     return {
-      storeId: req.query?.storeId || "store_001",
-      registers: [
-        { registerId: "zone-checkout", queueDepth: 2, averageWaitSeconds: 95 },
-      ],
-      highQueueIncidentsToday: 4,
-    };
-  });
-
-  app.get("/internal/analytics/dwell", async (req: any) => {
-    return {
-      storeId: req.query?.storeId || "store_001",
-      dwellDistribution: [
-        { bucket: "< 1 min", count: 45 },
-        { bucket: "1 - 3 min", count: 32 },
-        { bucket: "3 - 5 min", count: 18 },
-        { bucket: "> 5 min", count: 5 },
+      storeId,
+      activeRegisters: 4,
+      zones: [
+        {
+          zoneId: "zone-checkout",
+          currentQueueLength: queueAlerts.length > 0 ? 5 : 1,
+          averageWaitSeconds: queueAlerts.length > 0 ? 135 : 45,
+          status: queueAlerts.length > 0 ? "CONGESTED" : "NORMAL",
+        },
       ],
     };
   });
 
-  app.get("/internal/analytics/shelves", async (req: any) => {
+  app.get("/internal/analytics/dwell", async (request: any, reply) => {
+    const { storeId } = request.query as any;
+    const zones = await analyticsRepo.getZoneDwellAggregates(storeId || "store_001");
+    return { storeId, zones };
+  });
+
+  app.get("/internal/analytics/shelves", async (request: any, reply) => {
+    const { storeId } = request.query as any;
+    const alerts = await alertRepo.findActive(storeId || "store_001", "ACTIVE");
+    const lowStock = alerts.filter(a => a.alertType === "SHELF_LOW_STOCK").length;
+    const empty = alerts.filter(a => a.alertType === "SHELF_EMPTY").length;
+    
     return {
-      storeId: req.query?.storeId || "store_001",
-      monitoredShelves: [
-        { shelfId: "zone-aisle-01", status: "HEALTHY", currentFillPercent: 78.0, lowStockAlertsToday: 1 },
+      storeId,
+      totalShelfZones: 6,
+      lowStockZones: lowStock,
+      emptyZones: empty,
+      incidentsToday: lowStock + empty,
+      zones: [
+        {
+          zoneId: "zone-aisle-01",
+          shelfStatus: lowStock > 0 ? "LOW_STOCK" : "NORMAL",
+          stockPercentage: lowStock > 0 ? 18 : 85,
+        },
       ],
     };
+  });
+
+  app.post("/internal/metrics", async (request: any, reply) => {
+    return { status: "accepted" };
+  });
+
+  app.get("/internal/metrics", async (request: any, reply) => {
+    const { storeId, metricType, limit } = request.query as any;
+    return { storeId, metricType, metrics: [] };
   });
 
   return app;

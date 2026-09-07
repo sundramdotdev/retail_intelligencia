@@ -48,11 +48,28 @@ vision:
       - bottle
       - cup
       - backpack
+      - chair
+      - laptop
+      - cell phone
+      - handbag
   tracking:
     enabled: true
     max_lost_frames: 30
 
+# Entrance zone for footfall counting.
+# This zone represents the store entrance/exit boundary.
+# When a person's track transitions from OUTSIDE -> INSIDE this zone, footfall increments.
+entrance_zone_id: zone-entrance
+
 zones:
+  - id: zone-entrance
+    name: Entrance
+    enabled: true
+    polygon:
+      - [0, 400]
+      - [300, 400]
+      - [300, 720]
+      - [0, 720]
   - id: zone-aisle-01
     name: Aisle 1
     enabled: true
@@ -145,3 +162,12 @@ offline_queue:
   max_storage_mb: 100.0
   batch_size: 50
   drain_rate_limit: 50
+
+# MJPEG stream server configuration.
+# Serves a browser-compatible processed video stream with detection overlays.
+# The dashboard connects to this to display the live camera view.
+stream_server:
+  enabled: true
+  host: "0.0.0.0"
+  port: 8080
+  quality: 75  # JPEG quality (1-100)

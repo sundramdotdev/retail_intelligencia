@@ -23,6 +23,8 @@ class CanonicalRetailEvent(BaseModel):
         "TRAFFIC_LOW",
         "ZONE_DWELL",
         "DEVICE_HEALTH",
+        "INVENTORY_LOW",
+        "INVENTORY_RECOVERED",
     ]
     deviceId: str
     storeId: str

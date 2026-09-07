@@ -49,6 +49,7 @@ class HealthReporter:
         ram_used_mb = 0
         ram_total_mb = 0
         disk_free_mb = 0
+        ram_percent = 0.0
 
         if psutil:
             try:
@@ -56,6 +57,7 @@ class HealthReporter:
                 mem = psutil.virtual_memory()
                 ram_used_mb = int((mem.total - mem.available) / (1024 * 1024))
                 ram_total_mb = int(mem.total / (1024 * 1024))
+                ram_percent = round(mem.percent, 1)
                 disk = psutil.disk_usage(self.queue.db_path if hasattr(self.queue, "db_path") else ".")
                 disk_free_mb = int(disk.free / (1024 * 1024))
             except Exception as e:
@@ -108,6 +110,11 @@ class HealthReporter:
         # Queue Metrics
         q_stats = self.queue.get_stats()
 
+        # Fetch analytics snapshot from vision pipeline
+        analytics_data = {}
+        if self.vision_pipeline and hasattr(self.vision_pipeline, "get_analytics_snapshot"):
+            analytics_data = self.vision_pipeline.get_analytics_snapshot()
+
         return {
             "deviceId": self.mqtt_client.device_id,
             "storeId": self.mqtt_client.store_id,
@@ -128,6 +135,7 @@ class HealthReporter:
                 "failed": q_stats.get("failed", 0),
                 "storageMb": q_stats.get("storage_mb", 0.0),
             },
+            "analytics": analytics_data,
             "schemaVersion": "1.0",
         }
 
@@ -149,6 +157,40 @@ class HealthReporter:
             logger.debug("Health telemetry published successfully.")
         else:
             logger.debug("Health telemetry publish deferred (MQTT not connected)")
+
+        # Also publish live metrics to the metrics channel for dashboard consumption
+        analytics = payload.get("analytics", {})
+        if analytics:
+            metrics_payload = json.dumps({
+                "deviceId": payload["deviceId"],
+                "storeId": payload["storeId"],
+                "timestamp": payload["timestamp"],
+                "camera": {
+                    "id": payload["cameras"][0]["cameraId"] if payload.get("cameras") else "camera-01",
+                    "status": payload["cameras"][0]["status"] if payload.get("cameras") else "UNKNOWN",
+                    "fps": payload["cameras"][0]["fps"] if payload.get("cameras") else 0.0,
+                },
+                "vision": {
+                    "model": payload["models"][0]["modelId"] if payload.get("models") else "yolo11n",
+                    "inferenceFps": payload["models"][0]["fps"] if payload.get("models") else 0.0,
+                    "latencyMs": payload["models"][0]["latencyMs"] if payload.get("models") else 0.0,
+                    "activeTracks": analytics.get("peopleNow", 0) + analytics.get("activeObjects", 0),
+                },
+                "analytics": analytics,
+                "hardware": {
+                    "cpuPercent": payload["metrics"]["cpuPercent"],
+                    "ramUsedMb": payload["metrics"]["ramUsedMb"],
+                    "ramTotalMb": payload["metrics"]["ramTotalMb"],
+                    "gpuPercent": payload["metrics"]["gpuPercent"],
+                },
+                "schemaVersion": "1.0",
+            })
+            self.mqtt_client.publish_channel(
+                channel="metrics",
+                payload=metrics_payload,
+                qos=0,
+                retain=False,
+            )
 
         return success
 

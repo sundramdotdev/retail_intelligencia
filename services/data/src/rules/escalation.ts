@@ -12,7 +12,7 @@ export class EscalationEngine {
   ) {}
 
   async processEvent(event: RetailEventDTO): Promise<{ alert?: AlertDTO; task?: TaskDTO }> {
-    const applicableTypes = ["SHELF_EMPTY", "SHELF_LOW_STOCK", "QUEUE_HIGH", "TRAFFIC_HIGH", "ZONE_DWELL"];
+    const applicableTypes = ["SHELF_EMPTY", "SHELF_LOW_STOCK", "QUEUE_HIGH", "TRAFFIC_HIGH", "ZONE_DWELL", "INVENTORY_LOW"];
     if (!applicableTypes.includes(event.eventType)) {
       return {};
     }
@@ -40,6 +40,11 @@ export class EscalationEngine {
       const occ = event.metadata?.occupancyPercentage ?? "low";
       title = `Low Stock Alert — ${zoneId}`;
       message = `Shelf inventory dropped to ${occ}% in ${zoneId}. Restock needed.`;
+    } else if (event.eventType === "INVENTORY_LOW") {
+      const count = event.metadata?.currentCount ?? "low";
+      const threshold = event.metadata?.threshold ?? "unknown";
+      title = `Inventory Low Stock — ${zoneId}`;
+      message = `Count dropped to ${count} (threshold: ${threshold}) in ${zoneId}. Restock needed.`;
     } else if (event.eventType === "QUEUE_HIGH") {
       const cnt = event.metadata?.peopleCount ?? event.metadata?.queueCount ?? "several";
       const threshold = event.metadata?.threshold ?? "configured limit";
@@ -97,6 +102,18 @@ export class EscalationEngine {
         alertId: alert.id,
         title: `Restock Shelf — ${zoneId}`,
         description: `Replenish shelf stock in ${zoneId}. ${message}`,
+        priority: "HIGH",
+        status: "DETECTED",
+      });
+    } else if (event.eventType === "INVENTORY_LOW") {
+      const taskCode = `tsk_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+      task = await this.taskRepo.create({
+        taskCode,
+        storeId: event.storeId,
+        zoneId: event.zoneId,
+        alertId: alert.id,
+        title: `Refill Inventory — ${zoneId}`,
+        description: `Replenish inventory display in ${zoneId}. ${message}`,
         priority: "HIGH",
         status: "DETECTED",
       });

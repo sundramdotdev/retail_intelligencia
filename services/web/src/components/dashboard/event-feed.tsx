@@ -1,11 +1,11 @@
 'use client';
 
 import React from 'react';
-import type { RetailEvent } from '@/lib/types';
+import { CanonicalRetailEvent } from '@/lib/types';
 import { formatTime, severityClass, eventTypeLabel } from '@/lib/utils';
 
 interface EventFeedProps {
-  events: RetailEvent[];
+  events: CanonicalRetailEvent[];
   maxItems?: number;
   loading?: boolean;
 }
