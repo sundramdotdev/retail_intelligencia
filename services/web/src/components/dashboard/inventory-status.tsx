@@ -1,31 +1,26 @@
 "use client";
 
-import { useLiveMetrics } from "@/hooks/use-live-metrics";
-import { MetricCard } from "./metric-card";
+import { useRealtime } from "@/providers/realtime-provider";
+import { useEvents } from "@/hooks/use-events";
 import { Package, AlertTriangle, CheckCircle2 } from "lucide-react";
 
 export function InventoryStatus() {
-  const { data } = useLiveMetrics();
+  const { lastEvent } = useRealtime();
+  const { data: events } = useEvents();
 
-  // Look for INVENTORY_LOW alerts specifically, or we can use the latest metric if exposed.
-  // The prompt says "Inventory Low Stock" should appear as a card.
-  // We can pull the status from the real-time events or data.
-  // If the dashboard doesn't have an explicit inventory state yet, we can mock it based on active alerts.
-  
-  // Assuming useLiveMetrics returns recent events or we have a specific hook.
-  // The request wants an Inventory Status card showing: Item: Bottle, Current Count, Target, Threshold, Status.
-  
-  // To keep it simple, we use a placeholder or derived state until full state sync is available in data layer.
-  // For the prototype, we expect the latest INVENTORY_LOW or INVENTORY_RECOVERED event to dictate this.
-  
-  const recentInventoryEvent = data?.recentEvents?.find(
-    (e: any) => e.eventType === "INVENTORY_LOW" || e.eventType === "INVENTORY_RECOVERED"
+  // Find recent inventory events from SSE stream or REST API query
+  const inventoryEvents = events?.filter(
+    (e) => e.eventType === "INVENTORY_LOW" || e.eventType === "INVENTORY_RECOVERED" || e.eventType === "SHELF_LOW_STOCK"
   );
+  const sseEventType = (lastEvent as any)?.eventType || (lastEvent as any)?.type;
+  const isSseInventoryEvent = sseEventType === "INVENTORY_LOW" || sseEventType === "INVENTORY_RECOVERED" || sseEventType === "SHELF_LOW_STOCK";
+  const latestEventType = isSseInventoryEvent ? sseEventType : inventoryEvents?.[0]?.eventType;
+  const latestMetadata = (isSseInventoryEvent ? (lastEvent as any)?.metadata : inventoryEvents?.[0]?.metadata) as Record<string, any> | undefined;
 
-  const isLowStock = recentInventoryEvent?.eventType === "INVENTORY_LOW";
-  const count = recentInventoryEvent?.metadata?.currentCount ?? 5; // Default normal
-  const target = recentInventoryEvent?.metadata?.targetCount ?? 5;
-  const threshold = recentInventoryEvent?.metadata?.threshold ?? 3;
+  const isLowStock = latestEventType === "INVENTORY_LOW" || latestEventType === "SHELF_LOW_STOCK";
+  const count = typeof latestMetadata?.currentCount === "number" ? latestMetadata.currentCount : (isLowStock ? 1 : 5);
+  const target = typeof latestMetadata?.targetCount === "number" ? latestMetadata.targetCount : 5;
+  const threshold = typeof latestMetadata?.threshold === "number" ? latestMetadata.threshold : 3;
   
   return (
     <div className="bg-white/5 border border-white/10 p-6 flex flex-col gap-4 shadow-xl backdrop-blur-md relative overflow-hidden group hover:border-white/20 transition-all duration-300">

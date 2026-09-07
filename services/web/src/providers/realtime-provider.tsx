@@ -76,26 +76,35 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
         case 'TASK_UPDATED':
           queryClient.invalidateQueries({ queryKey: ['tasks'] });
           break;
-        case 'DEVICE_STATUS':
+        case 'DEVICE_STATUS': {
+          const payload = (event.data || event) as any;
+          const deviceId = payload.deviceId || event.deviceId || 'edge-dev-001';
           setState(prev => ({
             ...prev,
-            deviceStatus: { ...prev.deviceStatus, [event.deviceId as string]: event as unknown as DeviceStatus }
+            deviceStatus: { ...prev.deviceStatus, [deviceId]: payload as DeviceStatus }
           }));
           queryClient.invalidateQueries({ queryKey: ['devices'] });
           break;
-        case 'ZONE_TELEMETRY':
+        }
+        case 'ZONE_TELEMETRY': {
+          const payload = (event.data || event) as any;
+          const zoneId = payload.zoneId || event.zoneId || 'zone-checkout';
           setState(prev => ({
             ...prev,
-            zoneTelemetry: { ...prev.zoneTelemetry, [event.zoneId as string]: event as unknown as ZoneTelemetry }
+            zoneTelemetry: { ...prev.zoneTelemetry, [zoneId]: payload as ZoneTelemetry }
           }));
           queryClient.invalidateQueries({ queryKey: ['zones'] });
           break;
-        case 'LIVE_METRICS':
+        }
+        case 'LIVE_METRICS': {
+          const payload = (event.data || event) as any;
+          const deviceId = payload.deviceId || event.deviceId || 'edge-dev-001';
           setState(prev => ({
             ...prev,
-            liveMetrics: { ...prev.liveMetrics, [event.deviceId as string]: event as unknown as LiveMetrics }
+            liveMetrics: { ...prev.liveMetrics, [deviceId]: payload as LiveMetrics }
           }));
           break;
+        }
       }
     });
 

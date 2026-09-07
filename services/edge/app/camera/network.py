@@ -21,6 +21,10 @@ class NetworkCamera(CameraSource):
         self.cap = cv2.VideoCapture(self.url)
         
         if self.cap.isOpened():
+            try:
+                self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+            except Exception:
+                pass
             self._state = CameraState.CONNECTED
             logger.info(f"[{self.camera_id}] Connected successfully")
             return True

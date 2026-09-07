@@ -134,6 +134,16 @@ intelligence:
       - id: zone-aisle-01
         min_duration_seconds: 10
         cooldown_seconds: 30
+  inventory:
+    enabled: true
+    zones:
+      - zone_id: shelf_demo
+        object_class: bottle
+        target_count: 5
+        low_stock_threshold: 3
+        recovery_threshold: 4
+        min_persistence_seconds: 2.0
+        cooldown_seconds: 10.0
 
 mqtt:
   enabled: true

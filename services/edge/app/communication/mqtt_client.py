@@ -256,7 +256,7 @@ class EdgeMQTTClient:
                 self._state = MQTTConnectionState.ERROR
             self._schedule_reconnect()
 
-    def _on_disconnect(self, client, userdata, disconnect_flags_or_rc, properties=None):
+    def _on_disconnect(self, client, userdata, *args):
         with self._lock:
             was_connected = (self._state == MQTTConnectionState.CONNECTED)
             if self._running:

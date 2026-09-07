@@ -366,22 +366,62 @@ def main():
         logger.error("Initial camera connection failed. Will retry in loop.")
         
     if args.check_camera:
-        print(f"Camera: {config.camera.id} is connected.")
+        connected = stream_manager.camera.is_connected()
+        status_str = stream_manager.camera.state.value if hasattr(stream_manager.camera.state, 'value') else str(stream_manager.camera.state)
+        res_str = "N/A"
+        fps_str = "N/A"
+        result_str = "FAIL"
+        exit_code = 1
+
+        if connected:
+            success, frame, _ = stream_manager.read_and_sample()
+            if success and frame is not None:
+                h, w = frame.shape[:2]
+                res_str = f"{w}x{h}"
+                status_str = "STREAMING"
+                result_str = "PASS"
+                exit_code = 0
+            
+            meta = stream_manager.camera.get_metadata()
+            fps_val = meta.get("fps", 0.0)
+            if fps_val and fps_val > 0:
+                fps_str = f"{fps_val:.1f}"
+
+        url_display = config.camera.url if config.camera.url else ("device_" + str(config.camera.device_index) if config.camera.type == "usb" else "N/A")
+        print("Camera Check")
+        print("────────────────────────────")
+        print(f"Camera ID     : {config.camera.id}")
+        print(f"Type          : {config.camera.type}")
+        print(f"URL           : {url_display}")
+        print(f"Status        : {status_str}")
+        print(f"Resolution    : {res_str}")
+        print(f"Input FPS     : {fps_str}")
+        print(f"Result        : {result_str}")
+
         stream_manager.disconnect()
         if config.mqtt.enabled:
             heartbeat_emitter.stop()
             health_reporter.stop()
             dispatcher.stop()
             mqtt_client.disconnect()
-        sys.exit(0)
+        sys.exit(exit_code)
         
     if args.check_vision:
-        if config.vision.enabled:
-            print("Vision: READY")
-            print(f"Model: {config.vision.detector.model}")
-        else:
-            print("Vision: DISABLED")
+        print("Vision Check")
+        print("────────────────────────────")
+        print(f"Vision        : {'ENABLED' if config.vision.enabled else 'DISABLED'}")
+        print(f"Detector      : {config.vision.detector.type.upper()}")
+        print(f"Model         : {config.vision.detector.model}")
+        print(f"Confidence    : {config.vision.detector.confidence_threshold}")
+        print(f"Tracker       : {'ByteTrack' if config.vision.tracking.enabled else 'DISABLED'}")
+        print(f"Classes       : {', '.join(config.vision.classes.enabled) if config.vision.classes.enabled else 'ALL'}")
+        print("Result        : PASS")
         stream_manager.disconnect()
+        if config.mqtt.enabled:
+            heartbeat_emitter.stop()
+            health_reporter.stop()
+            dispatcher.stop()
+            mqtt_client.disconnect()
         sys.exit(0)
 
     # Start vision pipeline

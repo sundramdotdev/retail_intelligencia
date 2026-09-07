@@ -1,7 +1,9 @@
 """Device registration, management, and health routes."""
 from typing import Any, Dict, Optional
+import httpx
 from pydantic import BaseModel, Field
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
 
 from app.auth.device import AuthenticatedDevice, get_authenticated_device
 from app.auth.human import AuthenticatedUser, get_current_user
@@ -108,3 +110,31 @@ async def device_heartbeat(
 
     ok = await data_client.update_device_heartbeat(device_id, payload.timestamp)
     return {"status": "SUCCESS" if ok else "UNKNOWN_DEVICE", "deviceId": device_id}
+
+
+@router.get("/{device_id}/stream")
+async def stream_device_camera(device_id: str):
+    """Proxy the live annotated MJPEG camera stream from the edge device node."""
+    edge_stream_url = "http://localhost:8080/stream.mjpeg"
+
+    async def mjpeg_proxy_generator():
+        async with httpx.AsyncClient(timeout=None) as client:
+            try:
+                async with client.stream("GET", edge_stream_url) as response:
+                    if response.status_code != 200:
+                        yield b""
+                        return
+                    async for chunk in response.aiter_bytes():
+                        yield chunk
+            except Exception:
+                yield b""
+
+    return StreamingResponse(
+        mjpeg_proxy_generator(),
+        media_type="multipart/x-mixed-replace; boundary=frame",
+        headers={
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )

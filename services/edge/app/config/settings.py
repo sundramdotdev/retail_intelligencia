@@ -231,6 +231,10 @@ def load_settings(config_path: str = "config/edge.yaml") -> Settings:
         config_data["store"]["id"] = os.getenv("STORE_ID")
     if os.getenv("CAMERA_STREAM_URL"):
         config_data["camera"]["url"] = os.getenv("CAMERA_STREAM_URL")
+        if not os.getenv("CAMERA_TYPE") and config_data["camera"].get("type") == "usb":
+            config_data["camera"]["type"] = "network"
+    if os.getenv("CAMERA_TYPE"):
+        config_data["camera"]["type"] = os.getenv("CAMERA_TYPE")
     if os.getenv("LOG_LEVEL"):
         config_data["logging"]["level"] = os.getenv("LOG_LEVEL")
     if os.getenv("MQTT_HOST"):

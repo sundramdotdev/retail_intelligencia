@@ -55,7 +55,7 @@ class DataServiceClient:
         """
         endpoint = f"{self.base_url}/internal/events"
         try:
-            async with httpx.AsyncClient(timeout=3.0) as client:
+            async with httpx.AsyncClient(timeout=1.0) as client:
                 res = await client.post(endpoint, json={"events": events}, headers=self._get_headers())
                 if res.status_code == 200:
                     return res.json()
@@ -78,6 +78,7 @@ class DataServiceClient:
                     alt_code = f"alt_{len(self._fallback_alerts) + 1}"
                     alert = {
                         "id": alt_code,
+                        "alertId": alt_code,
                         "alertCode": alt_code,
                         "eventId": eid,
                         "storeId": evt["storeId"],
@@ -244,7 +245,7 @@ class DataServiceClient:
                     return res.json().get("alerts", [])
         except Exception:
             pass
-        return [a for a in self._fallback_alerts if a.get("storeId") == store_id]
+        return [a for a in self._fallback_alerts if a.get("storeId") == store_id and (not status or a.get("status") == status)]
 
     async def acknowledge_alert(self, alert_id: str, user_id: str) -> Optional[Dict[str, Any]]:
         endpoint = f"{self.base_url}/internal/alerts/{alert_id}/acknowledge"
@@ -283,7 +284,7 @@ class DataServiceClient:
         except Exception:
             pass
         task_code = f"tsk_{len(self._fallback_tasks) + 1}"
-        saved = {**task, "taskId": task_code, "status": "DETECTED"}
+        saved = {**task, "id": task_code, "taskId": task_code, "taskCode": task_code, "status": "DETECTED"}
         self._fallback_tasks.append(saved)
         return saved
 

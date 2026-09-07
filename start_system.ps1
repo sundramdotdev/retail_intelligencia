@@ -102,7 +102,7 @@ if (Test-Port 8000) {
     $apiJob = Start-Process powershell -ArgumentList @(
         "-NoExit", "-Command",
         "cd '$Root\services\api'; Write-Host '[API] Starting FastAPI Gateway...'; " +
-        "& '$Root\services\api\venv\Scripts\uvicorn.exe' app.main:app --host 0.0.0.0 --port 8000 --reload 2>&1"
+        "& '$Root\services\edge\venv\Scripts\python.exe' -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload 2>&1"
     ) -PassThru -WindowStyle Minimized
     Start-Sleep 4
     if (Test-Port 8000) {

@@ -51,9 +51,9 @@ def create_tracks(count, label="bottle", zone_id="inventory-demo"):
             center={'x': 5, 'y': 5},
             first_seen=0,
             last_seen=0,
-            age=0
+            age=0,
+            current_zone=zone_id
         )
-        t.current_zone = zone_id
         tracks.append(t)
     return tracks
 
@@ -64,13 +64,17 @@ def test_inventory_count_normal(inventory_rule):
     assert inventory_rule.state_manager.get(f"{inventory_rule.name}_state", "NORMAL") == "NORMAL"
 
 def test_inventory_threshold_low(inventory_rule):
+    t = time.time()
     # 5 objects -> normal
-    ctx = RetailContext(timestamp=time.time(), device_id="dev1", camera_id="cam1", tracks=create_tracks(5), observations=[], fps_metrics={})
+    ctx = RetailContext(timestamp=t, device_id="dev1", camera_id="cam1", tracks=create_tracks(5), observations=[], fps_metrics={})
     inventory_rule.evaluate(ctx)
     
-    # drops to 2 objects -> triggers low
-    ctx = RetailContext(timestamp=time.time(), device_id="dev1", camera_id="cam1", tracks=create_tracks(2), observations=[], fps_metrics={})
-    event = inventory_rule.evaluate(ctx)
+    # drops to 2 objects -> triggers low (first call sets persistence start, second call evaluates elapsed time)
+    ctx1 = RetailContext(timestamp=t + 0.1, device_id="dev1", camera_id="cam1", tracks=create_tracks(2), observations=[], fps_metrics={})
+    inventory_rule.evaluate(ctx1)
+    
+    ctx2 = RetailContext(timestamp=t + 0.2, device_id="dev1", camera_id="cam1", tracks=create_tracks(2), observations=[], fps_metrics={})
+    event = inventory_rule.evaluate(ctx2)
     
     assert event is not None
     assert event.eventType == "INVENTORY_LOW"
@@ -78,14 +82,19 @@ def test_inventory_threshold_low(inventory_rule):
     assert inventory_rule.state_manager.get(f"{inventory_rule.name}_state", "NORMAL") == "LOW"
 
 def test_inventory_recovery(inventory_rule):
+    t = time.time()
     # Trigger low first
-    ctx = RetailContext(timestamp=time.time(), device_id="dev1", camera_id="cam1", tracks=create_tracks(2), observations=[], fps_metrics={})
-    inventory_rule.evaluate(ctx)
+    ctx1 = RetailContext(timestamp=t, device_id="dev1", camera_id="cam1", tracks=create_tracks(2), observations=[], fps_metrics={})
+    inventory_rule.evaluate(ctx1)
+    ctx2 = RetailContext(timestamp=t + 0.1, device_id="dev1", camera_id="cam1", tracks=create_tracks(2), observations=[], fps_metrics={})
+    inventory_rule.evaluate(ctx2)
     assert inventory_rule.state_manager.get(f"{inventory_rule.name}_state", "NORMAL") == "LOW"
     
     # Recover to 4
-    ctx = RetailContext(timestamp=time.time(), device_id="dev1", camera_id="cam1", tracks=create_tracks(4), observations=[], fps_metrics={})
-    event = inventory_rule.evaluate(ctx)
+    ctx3 = RetailContext(timestamp=t + 0.2, device_id="dev1", camera_id="cam1", tracks=create_tracks(4), observations=[], fps_metrics={})
+    inventory_rule.evaluate(ctx3)
+    ctx4 = RetailContext(timestamp=t + 0.3, device_id="dev1", camera_id="cam1", tracks=create_tracks(4), observations=[], fps_metrics={})
+    event = inventory_rule.evaluate(ctx4)
     
     assert event is not None
     assert event.eventType == "INVENTORY_RECOVERED"

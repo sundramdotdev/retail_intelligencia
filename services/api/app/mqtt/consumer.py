@@ -44,6 +44,7 @@ class GatewayMqttConsumer:
             client.subscribe(f"retail/{settings.environment}/+/+/heartbeat", qos=1)
             client.subscribe(f"retail/{settings.environment}/+/+/telemetry", qos=1)
             client.subscribe(f"retail/{settings.environment}/+/+/metrics", qos=0)
+            client.subscribe(f"retail/{settings.environment}/+/+/health", qos=1)
             logger.info(f"Subscribed to topics for environment: {settings.environment}")
         else:
             self.is_connected = False
@@ -105,25 +106,11 @@ class GatewayMqttConsumer:
                         self._loop,
                     )
 
-            elif channel == "telemetry":
-                # Forward device health telemetry as SSE DEVICE_STATUS
-                if self._loop and not self._loop.is_closed():
-                    from app.realtime.broadcaster import broadcaster
-                    broadcaster.broadcast_sync(
-                        store_id=topic_store_id,
-                        event_type="DEVICE_STATUS",
-                        data={
-                            "deviceId": topic_device_id,
-                            "storeId": topic_store_id,
-                            **payload,
-                        },
-                    )
-
-            elif channel == "metrics":
+            elif channel in ("metrics", "health", "telemetry"):
                 # Update in-memory live metrics store
                 live_metrics_store.update(topic_store_id, topic_device_id, payload)
                 
-                # Broadcast LIVE_METRICS via SSE
+                # Broadcast LIVE_METRICS & DEVICE_STATUS via SSE
                 if self._loop and not self._loop.is_closed():
                     from app.realtime.broadcaster import broadcaster
                     metrics_summary = live_metrics_store.get_for_device(topic_device_id)
@@ -133,7 +120,17 @@ class GatewayMqttConsumer:
                             event_type="LIVE_METRICS",
                             data=metrics_summary,
                         )
-                        # Also forward to ZONE_TELEMETRY if zone occupancy is present
+                        broadcaster.broadcast_sync(
+                            store_id=topic_store_id,
+                            event_type="DEVICE_STATUS",
+                            data={
+                                "deviceId": topic_device_id,
+                                "storeId": topic_store_id,
+                                "status": "ONLINE",
+                                "cameraStatus": metrics_summary.get("camera", {}).get("status", "STREAMING"),
+                                "lastHeartbeatAt": payload.get("timestamp"),
+                            },
+                        )
                         zone_occ = metrics_summary.get("zoneOccupancy")
                         if zone_occ:
                             broadcaster.broadcast_sync(

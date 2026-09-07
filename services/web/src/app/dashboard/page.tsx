@@ -76,25 +76,26 @@ export default function OverviewPage() {
             <h3 className="text-xs font-mono uppercase tracking-wider" style={{ color: 'var(--text-tertiary)' }}>
               System Status
             </h3>
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>Store Status</span>
-              <div className="flex items-center gap-2">
-                <span className="status-dot status-dot-online" />
-                <span className="text-xs font-mono" style={{ color: 'var(--status-online)' }}>Operational</span>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>Store Status</span>
+                <div className="flex items-center gap-2">
+                  <span className="status-dot status-dot-online" />
+                  <span className="text-xs font-mono" style={{ color: 'var(--status-online)' }}>Operational</span>
+                </div>
               </div>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>Device Fleet</span>
-              <span className="text-xs font-mono" style={{ color: 'var(--text-primary)' }}>
-                {overview?.deviceHealthStatus || '—'}
-              </span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>Events Today</span>
-              <span className="text-xs font-mono" style={{ color: 'var(--text-primary)' }}>
-                {eventCount || events?.length || 0}
-              </span>
+              <div className="flex items-center justify-between">
+                <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>Device Fleet</span>
+                <span className="text-xs font-mono" style={{ color: 'var(--text-primary)' }}>
+                  {overview?.deviceHealthStatus || '—'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>Events Today</span>
+                <span className="text-xs font-mono" style={{ color: 'var(--text-primary)' }}>
+                  {eventCount || events?.length || 0}
+                </span>
+              </div>
             </div>
           </div>
         </div>

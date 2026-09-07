@@ -63,45 +63,52 @@ class HealthReporter:
             except Exception as e:
                 logger.debug(f"psutil query warning: {e}")
 
+        # Measure FPS
+        input_fps = 0.0
+        inf_fps = 0.0
+        if self.fps_counter and hasattr(self.fps_counter, "get_metrics"):
+            try:
+                fps_m, inf_fps = self.fps_counter.get_metrics()
+                input_fps = fps_m.input_fps
+            except Exception:
+                pass
+
         # Camera Metrics
         cameras = []
         if self.camera_manager and hasattr(self.camera_manager, "camera"):
             cam = self.camera_manager.camera
             is_conn = cam.is_connected() if hasattr(cam, "is_connected") else True
             meta = cam.get_metadata() if hasattr(cam, "get_metadata") else {}
+            cam_fps = round(input_fps, 1) if input_fps > 0 else round(meta.get("fps", 0.0), 1)
             cameras.append({
-                "cameraId": meta.get("camera_id", "camera-01"),
-                "status": "ONLINE" if is_conn else "OFFLINE",
-                "fps": meta.get("fps", 0.0),
+                "cameraId": getattr(cam, "camera_id", "camera-01"),
+                "status": "STREAMING" if is_conn else "OFFLINE",
+                "fps": cam_fps,
                 "dropRate": 0.0,
             })
         else:
             cameras.append({
                 "cameraId": "camera-01",
                 "status": "STREAMING",
-                "fps": 10.0,
+                "fps": round(input_fps, 1) if input_fps > 0 else 10.0,
                 "dropRate": 0.0,
             })
 
         # Model Metrics
         models = []
-        inf_fps = 0.0
         latency_ms = 0.0
-        if self.fps_counter and hasattr(self.fps_counter, "get_metrics"):
-            _, inf_fps = self.fps_counter.get_metrics()
-
         if self.vision_pipeline and hasattr(self.vision_pipeline, "get_health_metrics"):
             vh = self.vision_pipeline.get_health_metrics()
             latency_ms = vh.get("inference_latency_ms", 0.0)
             models.append({
-                "modelId": "person-detector-yolo",
+                "modelId": "models/yolo11n.pt",
                 "status": vh.get("detector_status", "RUNNING"),
                 "fps": round(inf_fps, 1),
                 "latencyMs": round(latency_ms, 1),
             })
         else:
             models.append({
-                "modelId": "person-detector-yolo",
+                "modelId": "models/yolo11n.pt",
                 "status": "RUNNING",
                 "fps": round(inf_fps, 1),
                 "latencyMs": 20.0,
